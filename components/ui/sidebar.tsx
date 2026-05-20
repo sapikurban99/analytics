@@ -1,13 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
   Activity,
   DollarSign,
   ChevronDown,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Lock
 } from "lucide-react";
 
 interface SidebarProps {
@@ -128,9 +130,7 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
             <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-4 pl-1">
               <NavItem id="overview" label="Dashboard" />
               <NavItem id="videos" label="Video Overview" />
-              <NavItem id="input-data" label="Input Data" />
               <NavItem id="video-check" label="Video Check" />
-              <NavItem id="riwayat" label="Riwayat Upload" />
               <NavItem id="ai-insight" label="AI Insight" />
               <div className="pr-2 pl-1 mt-2">
                 <NavItem id="action-plan" label="Action Plan" isAction actionColor="cyan" />
@@ -230,6 +230,20 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
         </div>
 
       </nav>
+
+      {/* Admin Panel Access */}
+      <div className="p-3 border-t border-[#1F1F23]/60 bg-[#0B0B0C]/50 shrink-0">
+        <Link
+          href="/admin"
+          className="group flex w-full items-center justify-between rounded-xl border border-cyan-500/20 bg-cyan-500/5 hover:bg-cyan-500/10 px-4 py-2.5 text-xs font-bold text-cyan-400 hover:text-white transition-all duration-200"
+        >
+          <div className="flex items-center gap-2">
+            <Lock className="h-3.5 w-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
+            <span>Kelola Data (Admin)</span>
+          </div>
+          <ChevronRight className="h-3.5 w-3.5 text-cyan-400/70 group-hover:translate-x-0.5 transition-transform" />
+        </Link>
+      </div>
     </aside>
   );
 }
