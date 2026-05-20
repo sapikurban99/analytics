@@ -51,7 +51,23 @@ export default function AdminPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<"upload" | "database" | "history">("database");
+  const [activeTab, setActiveTab] = useState<"upload" | "database" | "history" | "edit">("database");
+
+  // Edit Data States
+  const [editSelectedMonth, setEditSelectedMonth] = useState<string>("");
+  const [editSelectedSection, setEditSelectedSection] = useState<string>("tiktok_overview");
+  const [editMonthRawData, setEditMonthRawData] = useState<Record<string, any> | null>(null);
+  const [isFetchingEditData, setIsFetchingEditData] = useState(false);
+  const [editFetchError, setEditFetchError] = useState<string | null>(null);
+  // Structured form state for overview sections
+  const [structuredForm, setStructuredForm] = useState<Record<string, any>>({});
+  // Raw JSON editor state
+  const [rawJsonText, setRawJsonText] = useState<string>("");
+  const [rawJsonError, setRawJsonError] = useState<string | null>(null);
+  // Save feedback
+  const [isSavingSection, setIsSavingSection] = useState(false);
+  const [saveSectionSuccess, setSaveSectionSuccess] = useState<string | null>(null);
+  const [saveSectionError, setSaveSectionError] = useState<string | null>(null);
 
   // Database Management States
   const [months, setMonths] = useState<MonthItem[]>([]);
@@ -309,6 +325,141 @@ export default function AdminPage() {
     }
   };
 
+  // Fetch full data for a specific month for the editor
+  const fetchMonthData = async (monthKey: string) => {
+    setIsFetchingEditData(true);
+    setEditFetchError(null);
+    setEditMonthRawData(null);
+    setSaveSectionSuccess(null);
+    setSaveSectionError(null);
+    try {
+      const res = await fetch("/api/admin/metrics");
+      if (!res.ok) throw new Error("Gagal mengambil data dari server.");
+      const data = await res.json();
+      if (data?.months?.[monthKey]) {
+        const monthData = data.months[monthKey];
+        setEditMonthRawData(monthData);
+        // Auto-load the currently selected section
+        const sectionData = monthData[editSelectedSection];
+        if (sectionData !== undefined) {
+          if (STRUCTURED_SECTIONS_LIST.includes(editSelectedSection)) {
+            setStructuredForm(flattenForForm(sectionData));
+          } else {
+            setRawJsonText(JSON.stringify(sectionData, null, 2));
+          }
+        } else {
+          setRawJsonText("[]");
+        }
+      } else {
+        setEditFetchError(`Data untuk bulan ${monthKey} tidak ditemukan.`);
+      }
+    } catch (err: any) {
+      setEditFetchError(err.message || "Gagal memuat data bulan.");
+    } finally {
+      setIsFetchingEditData(false);
+    }
+  };
+
+  const STRUCTURED_SECTIONS_LIST = ["shopee_overview", "tiktok_overview", "combined_overview"];
+  const RAW_SECTIONS_LIST = ["ads", "daily_trends", "products", "products_consolidated", "lives", "videos"];
+  const ALL_SECTIONS_LIST = [...STRUCTURED_SECTIONS_LIST, ...RAW_SECTIONS_LIST];
+
+  const isStructuredSection = (key: string) => STRUCTURED_SECTIONS_LIST.includes(key);
+
+  const flattenForForm = (obj: Record<string, any>, prefix = ""): Record<string, any> => {
+    const result: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      const fullKey = prefix ? `${prefix}.${k}` : k;
+      if (typeof v === "object" && v !== null && !Array.isArray(v)) {
+        Object.assign(result, flattenForForm(v, fullKey));
+      } else {
+        result[fullKey] = v;
+      }
+    }
+    return result;
+  };
+
+  const unflattenForm = (flat: Record<string, any>): Record<string, any> => {
+    const result: Record<string, any> = {};
+    for (const [path, value] of Object.entries(flat)) {
+      const keys = path.split(".");
+      let cur: any = result;
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!cur[keys[i]] || typeof cur[keys[i]] !== "object") cur[keys[i]] = {};
+        cur = cur[keys[i]];
+      }
+      const numVal = parseFloat(value);
+      cur[keys[keys.length - 1]] = isNaN(numVal) ? value : numVal;
+    }
+    return result;
+  };
+
+  const handleSectionChange = (section: string) => {
+    setEditSelectedSection(section);
+    setRawJsonError(null);
+    setSaveSectionSuccess(null);
+    setSaveSectionError(null);
+    if (!editMonthRawData) return;
+    const sectionData = editMonthRawData[section];
+    if (sectionData !== undefined) {
+      if (STRUCTURED_SECTIONS_LIST.includes(section)) {
+        setStructuredForm(flattenForForm(sectionData));
+      } else {
+        setRawJsonText(JSON.stringify(sectionData, null, 2));
+      }
+    } else {
+      if (STRUCTURED_SECTIONS_LIST.includes(section)) {
+        setStructuredForm({});
+      } else {
+        setRawJsonText("[]");
+      }
+    }
+  };
+
+  const handleSectionSave = async () => {
+    if (!editSelectedMonth) return;
+    setIsSavingSection(true);
+    setSaveSectionSuccess(null);
+    setSaveSectionError(null);
+
+    let sectionData: any;
+    if (isStructuredSection(editSelectedSection)) {
+      sectionData = unflattenForm(structuredForm);
+    } else {
+      try {
+        sectionData = JSON.parse(rawJsonText);
+        setRawJsonError(null);
+      } catch (e: any) {
+        setRawJsonError("JSON tidak valid: " + e.message);
+        setIsSavingSection(false);
+        return;
+      }
+    }
+
+    try {
+      const res = await fetch("/api/admin/metrics", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          monthKey: editSelectedMonth,
+          sectionKey: editSelectedSection,
+          sectionData,
+        }),
+      });
+      const result = await res.json();
+      if (res.ok && result.success) {
+        setSaveSectionSuccess(result.message || "Berhasil disimpan!");
+        setEditMonthRawData((prev: any) => prev ? { ...prev, [editSelectedSection]: sectionData } : prev);
+      } else {
+        setSaveSectionError(result.error || "Gagal menyimpan data.");
+      }
+    } catch (err: any) {
+      setSaveSectionError("Koneksi bermasalah: " + err.message);
+    } finally {
+      setIsSavingSection(false);
+    }
+  };
+
   return (
     <main className="min-h-screen bg-gradient-to-tr from-[#0B0B0C] via-[#0E0E12] to-[#12121D] text-[#F4F4F6] font-sans antialiased relative selection:bg-cyan-500/30 overflow-x-hidden flex flex-col justify-between">
       
@@ -466,7 +617,7 @@ export default function AdminPage() {
               </div>
 
               {/* TABS SELECTOR */}
-              <div className="inline-flex rounded-xl bg-[#131316] border border-[#1F1F23] p-1 gap-1 shrink-0 self-start md:self-auto">
+              <div className="inline-flex rounded-xl bg-[#131316] border border-[#1F1F23] p-1 gap-1 shrink-0 self-start md:self-auto flex-wrap">
                 <button
                   onClick={() => setActiveTab("database")}
                   className={`rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 ${
@@ -477,6 +628,17 @@ export default function AdminPage() {
                 >
                   <Database className="inline h-3.5 w-3.5 mr-1.5" />
                   Kelola Database
+                </button>
+                <button
+                  onClick={() => setActiveTab("edit")}
+                  className={`rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 ${
+                    activeTab === "edit"
+                      ? "bg-[#252538] text-white"
+                      : "text-[#8E8E95] hover:text-[#F4F4F6]"
+                  }`}
+                >
+                  <Edit className="inline h-3.5 w-3.5 mr-1.5" />
+                  Edit Data JSON
                 </button>
                 <button
                   onClick={() => setActiveTab("upload")}
@@ -894,6 +1056,193 @@ export default function AdminPage() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: EDIT DATA JSON */}
+              {activeTab === "edit" && (
+                <div className="space-y-6">
+                  {/* Month selector */}
+                  <div className="rounded-3xl border border-[#1F1F23] bg-[#131316]/60 p-6 shadow-xl backdrop-blur-md">
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
+                      <Edit className="h-5 w-5 text-cyan-400" />
+                      Edit Data JSON Bulan
+                    </h2>
+                    <p className="text-xs text-[#8E8E95] mb-5">
+                      Pilih bulan dan section yang ingin diedit. Section overview menggunakan form terstruktur; section lain menggunakan raw JSON editor.
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row gap-4 items-end">
+                      <div className="flex-1">
+                        <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Bulan</label>
+                        <select
+                          value={editSelectedMonth}
+                          onChange={(e) => setEditSelectedMonth(e.target.value)}
+                          className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
+                        >
+                          <option value="">-- Pilih Bulan --</option>
+                          {months.map((m) => (
+                            <option key={m.key} value={m.key}>{m.name} ({m.key})</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => editSelectedMonth && fetchMonthData(editSelectedMonth)}
+                        disabled={!editSelectedMonth || isFetchingEditData}
+                        className="rounded-xl bg-cyan-500 px-5 py-3 text-xs font-bold text-black hover:bg-cyan-400 disabled:opacity-50 flex items-center gap-2 shrink-0"
+                      >
+                        {isFetchingEditData ? (
+                          <><RefreshCw className="h-4 w-4 animate-spin" />Memuat...</>
+                        ) : (
+                          <><Database className="h-4 w-4" />Load Data</>  
+                        )}
+                      </button>
+                    </div>
+
+                    {editFetchError && (
+                      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-medium text-rose-400">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>{editFetchError}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Editor Area — only shown after data is loaded */}
+                  {editMonthRawData && (
+                    <div className="rounded-3xl border border-[#1F1F23] bg-[#131316]/60 shadow-xl backdrop-blur-md overflow-hidden">
+                      {/* Section Selector Tabs */}
+                      <div className="border-b border-[#1F1F23] p-4 flex items-center gap-2 flex-wrap bg-[#0B0B0C]/40">
+                        <span className="text-xs font-bold text-[#8E8E95] mr-2 uppercase tracking-wider">Section:</span>
+                        {ALL_SECTIONS_LIST.filter(s => editMonthRawData[s] !== undefined || STRUCTURED_SECTIONS_LIST.includes(s)).map((section) => (
+                          <button
+                            key={section}
+                            onClick={() => handleSectionChange(section)}
+                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                              editSelectedSection === section
+                                ? isStructuredSection(section)
+                                  ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                                  : "bg-violet-500/20 text-violet-400 border border-violet-500/30"
+                                : "bg-[#131316] text-[#8E8E95] border border-[#1F1F23] hover:text-white"
+                            }`}
+                          >
+                            {isStructuredSection(section) ? "📊" : "{ }"} {section}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Editor Content */}
+                      <div className="p-6">
+                        <div className="flex items-center justify-between mb-5">
+                          <div>
+                            <h3 className="text-sm font-bold text-white">
+                              {isStructuredSection(editSelectedSection) ? "Structured Form" : "Raw JSON Editor"}
+                              <span className="ml-2 text-xs font-mono text-[#8E8E95]">— {editSelectedSection}</span>
+                            </h3>
+                            <p className="text-xs text-[#8E8E95] mt-0.5">
+                              {isStructuredSection(editSelectedSection)
+                                ? "Edit nilai field numerik secara langsung melalui form input."
+                                : "Edit JSON mentah section ini. Pastikan format JSON valid sebelum menyimpan."}
+                            </p>
+                          </div>
+                          {!isStructuredSection(editSelectedSection) && (
+                            <button
+                              onClick={() => {
+                                try {
+                                  const parsed = JSON.parse(rawJsonText);
+                                  setRawJsonText(JSON.stringify(parsed, null, 2));
+                                  setRawJsonError(null);
+                                } catch (e: any) {
+                                  setRawJsonError("Format JSON tidak valid: " + e.message);
+                                }
+                              }}
+                              className="rounded-lg border border-[#1F1F23] bg-[#0B0B0C] px-3 py-1.5 text-xs font-semibold text-[#8E8E95] hover:text-white transition-colors"
+                            >
+                              ✨ Format JSON
+                            </button>
+                          )}
+                        </div>
+
+                        {/* STRUCTURED FORM MODE */}
+                        {isStructuredSection(editSelectedSection) ? (
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                            {Object.entries(structuredForm).map(([key, value]) => (
+                              <div key={key}>
+                                <label className="block text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider mb-1.5">
+                                  {key}
+                                </label>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  value={value as number}
+                                  onChange={(e) => setStructuredForm(prev => ({ ...prev, [key]: e.target.value }))}
+                                  className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-cyan-500/50 transition-colors"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          /* RAW JSON MODE */
+                          <div className="space-y-3">
+                            {rawJsonError && (
+                              <div className="flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-400">
+                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                                <span className="font-mono">{rawJsonError}</span>
+                              </div>
+                            )}
+                            <textarea
+                              value={rawJsonText}
+                              onChange={(e) => { setRawJsonText(e.target.value); setRawJsonError(null); }}
+                              rows={24}
+                              spellCheck={false}
+                              className="w-full rounded-2xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-4 text-xs text-emerald-400 font-mono leading-relaxed focus:outline-none focus:border-cyan-500/30 transition-colors resize-y custom-scrollbar"
+                              style={{ minHeight: '400px' }}
+                            />
+                            <p className="text-[10px] text-[#8E8E95]">
+                              Jumlah karakter: {rawJsonText.length.toLocaleString()} • Estimasi baris: {rawJsonText.split('\n').length.toLocaleString()}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Save / Feedback */}
+                        <div className="mt-6 flex items-center justify-between gap-4">
+                          <div className="flex-1">
+                            {saveSectionSuccess && (
+                              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs font-medium text-emerald-400">
+                                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                                <span>{saveSectionSuccess}</span>
+                              </div>
+                            )}
+                            {saveSectionError && (
+                              <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs font-medium text-rose-400">
+                                <AlertTriangle className="h-4 w-4 shrink-0" />
+                                <span>{saveSectionError}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-3 shrink-0">
+                            <button
+                              onClick={() => handleSectionChange(editSelectedSection)}
+                              disabled={isSavingSection}
+                              className="rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-2.5 text-xs font-bold text-[#8E8E95] hover:text-white transition-colors disabled:opacity-50"
+                            >
+                              Reset
+                            </button>
+                            <button
+                              onClick={handleSectionSave}
+                              disabled={isSavingSection}
+                              className="rounded-xl bg-gradient-to-r from-cyan-500 to-[#3D4BFF] px-6 py-2.5 text-xs font-bold text-white shadow-[0_0_20px_rgba(61,75,255,0.2)] hover:shadow-[0_0_25px_rgba(61,75,255,0.3)] disabled:opacity-50 flex items-center gap-2 transition-all"
+                            >
+                              {isSavingSection ? (
+                                <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Menyimpan...</>
+                              ) : (
+                                <><CheckCircle2 className="h-3.5 w-3.5" />Simpan ke Database</>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

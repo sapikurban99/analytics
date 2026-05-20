@@ -260,3 +260,90 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });
   }
 }
+// PATCH: Update a specific section of a month's JSON data
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { monthKey, sectionKey, sectionData } = body;
+
+    if (!monthKey || !sectionKey || sectionData === undefined) {
+      return NextResponse.json(
+        { error: "Missing required fields: monthKey, sectionKey, sectionData" },
+        { status: 400 }
+      );
+    }
+
+    const workspaceRoot = process.cwd();
+    const consolidatedPath = path.join(workspaceRoot, "lib/data/consolidated_metrics.json");
+
+    // 1. Update local consolidated_metrics.json fallback
+    try {
+      if (fs.existsSync(consolidatedPath)) {
+        const raw = fs.readFileSync(consolidatedPath, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed.months && parsed.months[monthKey]) {
+          parsed.months[monthKey][sectionKey] = sectionData;
+          fs.writeFileSync(consolidatedPath, JSON.stringify(parsed, null, 2), "utf-8");
+          console.log(`[Admin API PATCH] Updated local ${sectionKey} for ${monthKey}`);
+        }
+      }
+    } catch (localErr: any) {
+      console.error("[Admin API PATCH] Failed to update local file:", localErr.message);
+    }
+
+    // 2. Update Supabase
+    if (!isSupabaseAdminConfigured() || !supabaseAdmin) {
+      return NextResponse.json({
+        success: true,
+        message: `Section "${sectionKey}" berhasil diperbarui di file lokal (Supabase tidak dikonfigurasi).`,
+      });
+    }
+
+    // Fetch existing data row
+    const { data: existingRows, error: fetchError } = await supabaseAdmin
+      .from("tomeame_metrics")
+      .select("data")
+      .eq("month_key", monthKey)
+      .single();
+
+    if (fetchError || !existingRows) {
+      return NextResponse.json(
+        { error: `Bulan ${monthKey} tidak ditemukan di database: ${fetchError?.message}` },
+        { status: 404 }
+      );
+    }
+
+    // Merge section into existing data
+    const existingData = existingRows.data || {};
+    const updatedData = {
+      ...existingData,
+      [sectionKey]: sectionData,
+    };
+
+    // Upsert back to Supabase
+    const { error: updateError } = await supabaseAdmin
+      .from("tomeame_metrics")
+      .update({
+        data: updatedData,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("month_key", monthKey);
+
+    if (updateError) {
+      console.error(`[Admin API PATCH] Supabase update error for ${monthKey}/${sectionKey}:`, updateError.message);
+      return NextResponse.json(
+        { error: "Gagal memperbarui data di Supabase: " + updateError.message },
+        { status: 500 }
+      );
+    }
+
+    console.log(`[Admin API PATCH] Successfully updated ${sectionKey} for ${monthKey} in Supabase`);
+    return NextResponse.json({
+      success: true,
+      message: `Section "${sectionKey}" untuk bulan ${monthKey} berhasil diperbarui!`,
+    });
+  } catch (err: any) {
+    console.error("[Admin API PATCH] Error:", err);
+    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 });
+  }
+}
