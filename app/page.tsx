@@ -47,11 +47,45 @@ import DataTable, { ColumnDef } from "@/components/ui/data-table";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { exportToCSV } from "@/lib/export";
 import { cn } from "@/lib/utils";
-
 export default function Home() {
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedMonth, setSelectedMonth] = useState("2026-04"); // Default to latest month
   const [selectedPlatform, setSelectedPlatform] = useState<"All" | "Shopee" | "TikTok" | "Meta">("All");
+
+  const handleActiveTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (tab.endsWith("-shopee")) {
+      setSelectedPlatform("Shopee");
+    } else if (tab.endsWith("-tiktok")) {
+      setSelectedPlatform("TikTok");
+    } else if (tab.endsWith("-meta")) {
+      setSelectedPlatform("Meta");
+    }
+  };
+
+  const handlePlatformFilterChange = (platform: "All" | "Shopee" | "TikTok" | "Meta") => {
+    setSelectedPlatform(platform);
+    const suffix = platform === "All" ? "" : `-${platform.toLowerCase()}`;
+    if (activeTab.startsWith("komisi-")) {
+      if (platform === "All") {
+        setActiveTab("overview");
+      } else {
+        setActiveTab(`komisi${suffix}`);
+      }
+    } else if (activeTab.startsWith("laba-rugi-")) {
+      if (platform === "All") {
+        setActiveTab("overview");
+      } else {
+        setActiveTab(`laba-rugi${suffix}`);
+      }
+    } else if (activeTab.startsWith("products-") || activeTab === "products") {
+      if (platform === "All") {
+        setActiveTab("overview");
+      } else {
+        setActiveTab(`products${suffix}`);
+      }
+    }
+  };
 
   // Dynamic metrics from Supabase database
   const [metricsData, setMetricsData] = useState<any>(null);
@@ -845,10 +879,99 @@ export default function Home() {
     }
   };
 
+  // Dynamic financial calculations for Laba Rugi and Komisi
+  const financialData = useMemo(() => {
+    if (!dashboardData) return null;
+
+    const gmv = dashboardData.overview.find((m) => m.key === "gmv")?.value || 0;
+    const hpp = gmv * 0.45; // Modeled HPP at 45% of GMV
+    const labaKotor = gmv - hpp;
+
+    // Platform specific marketplace fees (Commission + transaction fee)
+    const platformFeeRate = selectedPlatform === "Shopee" ? 0.055 : selectedPlatform === "TikTok" ? 0.05 : selectedPlatform === "Meta" ? 0 : 0.052;
+    const platformFee = gmv * platformFeeRate;
+
+    // Sourced ad spend from CPC
+    const adSpend = dashboardData.ads.summary.cost || 0;
+
+    // Sourced dynamic affiliate GMV
+    const affiliateLiveGmv = dashboardData.lives.filter((l) => l.type === "Affiliate").reduce((acc, l) => acc + l.gmv, 0);
+    const affiliateVideoGmv = dashboardData.videos.filter((v) => v.type === "Affiliate").reduce((acc, v) => acc + v.gmv, 0);
+    const affiliateGmv = affiliateLiveGmv + affiliateVideoGmv;
+    
+    // Sourced dynamic direct GMV
+    const directGmv = gmv - affiliateGmv;
+
+    // Estimate affiliate commission at 8% of affiliate GMV
+    const affiliateCommission = affiliateGmv * 0.08;
+
+    // Total Operational Expenses
+    const totalExpenses = platformFee + adSpend + affiliateCommission;
+
+    // Net Profit
+    const labaBersih = labaKotor - totalExpenses;
+    const npm = gmv > 0 ? (labaBersih / gmv) * 100 : 0;
+
+    // Top Affiliate Creators Leaderboard
+    // We combine lives and videos affiliate creator records!
+    const creatorMap: Record<string, { creator: string, gmv: number, orders: number, views: number, count: number, source: string }> = {};
+    
+    dashboardData.lives.forEach((l) => {
+      const name = l.creator_name || l.creator;
+      if (!name) return;
+      if (!creatorMap[name]) {
+        creatorMap[name] = { creator: name, gmv: 0, orders: 0, views: 0, count: 0, source: "LIVE" };
+      }
+      creatorMap[name].gmv += l.gmv;
+      creatorMap[name].orders += l.items_sold;
+      creatorMap[name].views += l.views;
+      creatorMap[name].count += 1;
+    });
+
+    dashboardData.videos.forEach((v) => {
+      const name = v.creator;
+      if (!name) return;
+      if (!creatorMap[name]) {
+        creatorMap[name] = { creator: name, gmv: 0, orders: 0, views: 0, count: 0, source: "Video" };
+      } else {
+        creatorMap[name].source = "LIVE & Video";
+      }
+      creatorMap[name].gmv += v.gmv;
+      creatorMap[name].orders += v.items_sold;
+      creatorMap[name].views += v.views;
+      creatorMap[name].count += 1;
+    });
+
+    // Sort by GMV descending and keep top 8
+    const topAffiliates = Object.values(creatorMap)
+      .sort((a, b) => b.gmv - a.gmv)
+      .slice(0, 8)
+      .map((c) => ({
+        ...c,
+        estimatedCommission: c.gmv * 0.08,
+      }));
+
+    return {
+      gmv,
+      hpp,
+      labaKotor,
+      platformFee,
+      platformFeeRate,
+      adSpend,
+      affiliateGmv,
+      directGmv,
+      affiliateCommission,
+      totalExpenses,
+      labaBersih,
+      npm,
+      topAffiliates,
+    };
+  }, [dashboardData, selectedPlatform]);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0B0B0C] text-[#F4F4F6]">
       {/* 1. Sidebar Nav */}
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={handleActiveTabChange} />
 
       {/* 2. Main content container */}
       <div className="flex flex-1 flex-col overflow-y-auto relative custom-scrollbar">
@@ -866,11 +989,17 @@ export default function Home() {
                 {activeTab === 'overview' ? 'Dashboard' : 
                  activeTab === 'videos' ? 'Video Overview' : 
                  activeTab === 'ai-insight' ? 'AI Insight' : 
+                 activeTab.startsWith('komisi-') ? `Komisi - ${selectedPlatform}` :
+                 activeTab.startsWith('laba-rugi-') ? `Laba Rugi - ${selectedPlatform}` :
+                 activeTab.startsWith('products-') ? `Analisa Produk - ${selectedPlatform}` :
                  'Analytics'}
               </h1>
               <p className="text-sm text-[#8E8E95] mt-1">
                 {activeTab === 'overview' ? 'Ringkasan performa GMV MAX' : 
                  activeTab === 'videos' ? 'Analisis performa konten video' : 
+                 activeTab.startsWith('komisi-') ? `Analisis komisi dan fee program untuk ${selectedPlatform}` :
+                 activeTab.startsWith('laba-rugi-') ? `Laporan Laba Rugi (P&L) untuk ${selectedPlatform}` :
+                 activeTab.startsWith('products-') ? `Analisis performa produk terlaris untuk ${selectedPlatform}` :
                  'Detail performa analytics'}
               </p>
             </div>
@@ -906,26 +1035,32 @@ export default function Home() {
 
               {/* Platform and Action buttons row */}
               <div className="flex items-center gap-3">
-                 <div className="flex items-center rounded-lg border border-[#1F1F23] bg-[#131316] p-1">
-                    <button
-                      onClick={() => setSelectedPlatform("All")}
-                      className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all", selectedPlatform === "All" ? "bg-[#2A2A32] text-white" : "text-[#8E8E95] hover:text-white")}
-                    >
-                      Semua Platform
-                    </button>
-                    <button
-                      onClick={() => setSelectedPlatform("Shopee")}
-                      className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Shopee" ? "bg-[#EE4D2D]/20 text-[#EE4D2D]" : "text-[#8E8E95] hover:text-white")}
-                    >
-                      Shopee
-                    </button>
-                    <button
-                      onClick={() => setSelectedPlatform("TikTok")}
-                      className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "TikTok" ? "bg-zinc-800 text-white" : "text-[#8E8E95] hover:text-white")}
-                    >
-                      TikTok
-                    </button>
-                 </div>
+                  <div className="flex items-center rounded-lg border border-[#1F1F23] bg-[#131316] p-1">
+                     <button
+                       onClick={() => handlePlatformFilterChange("All")}
+                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all", selectedPlatform === "All" ? "bg-[#2A2A32] text-white" : "text-[#8E8E95] hover:text-white")}
+                     >
+                       Semua Platform
+                     </button>
+                     <button
+                       onClick={() => handlePlatformFilterChange("Shopee")}
+                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Shopee" ? "bg-[#EE4D2D]/20 text-[#EE4D2D]" : "text-[#8E8E95] hover:text-white")}
+                     >
+                       Shopee
+                     </button>
+                     <button
+                       onClick={() => handlePlatformFilterChange("TikTok")}
+                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "TikTok" ? "bg-zinc-800 text-white" : "text-[#8E8E95] hover:text-white")}
+                     >
+                       TikTok
+                     </button>
+                     <button
+                       onClick={() => handlePlatformFilterChange("Meta")}
+                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Meta" ? "bg-[#1877F2]/20 text-[#1877F2]" : "text-[#8E8E95] hover:text-white")}
+                     >
+                       Meta Ads
+                     </button>
+                  </div>
                  <button onClick={handleExport} className="rounded-lg bg-white text-black px-4 py-1.5 text-xs font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
                    <ArrowDownRight className="h-4 w-4" /> Export CSV
                  </button>
@@ -1005,8 +1140,411 @@ export default function Home() {
             </div>
           )}
 
+          {/* TAB: LABA RUGI */}
+          {activeTab.startsWith("laba-rugi-") && financialData && (
+            <div className="space-y-8 mt-4 text-left">
+              {/* Dynamic metric summaries grid */}
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <MetricCard
+                  label="Total Pendapatan (GMV)"
+                  value={financialData.gmv}
+                  format="currency"
+                  icon={DollarSign}
+                  description={`Omzet kotor ${selectedPlatform}`}
+                />
+                <MetricCard
+                  label="Total Beban Operasional"
+                  value={financialData.totalExpenses}
+                  format="currency"
+                  icon={Coins}
+                  description="Beban platform + iklan + komisi"
+                />
+                <MetricCard
+                  label="Laba Bersih (Net Profit)"
+                  value={financialData.labaBersih}
+                  format="currency"
+                  icon={TrendingUp}
+                  description={`Margin Laba Bersih: ${financialData.npm.toFixed(1)}%`}
+                  className={cn(
+                    financialData.labaBersih >= 0 
+                      ? "border-emerald-500/20 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.05)]" 
+                      : "border-rose-500/20 bg-rose-500/5 shadow-[0_0_15px_rgba(239,68,68,0.05)]"
+                  )}
+                  renderValue={() => formatCurrency(financialData.labaBersih)}
+                />
+              </div>
+
+              {/* Accounting Sheet and Progressive Visualizer */}
+              <div className="grid gap-6 lg:grid-cols-3">
+                {/* 1. Double Entry P&L Statement */}
+                <div className="lg:col-span-2 rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
+                  <div className="mb-6">
+                    <h3 className="text-lg font-bold text-white">Laporan Laba Rugi Komprehensif</h3>
+                    <p className="text-sm text-[#8E8E95] mt-1">Struktur keuangan P&L detail berdasarkan aktivitas penjualan</p>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Header Row */}
+                    <div className="flex justify-between border-b border-[#1F1F23] pb-2 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">
+                      <span>Kategori Akun</span>
+                      <span>Nilai (IDR)</span>
+                    </div>
+
+                    {/* Pendapatan Penjualan */}
+                    <div className="flex justify-between py-1 text-sm font-semibold text-white">
+                      <span>Pendapatan Penjualan Kotor (GMV)</span>
+                      <span>{formatCurrency(financialData.gmv)}</span>
+                    </div>
+
+                    {/* HPP */}
+                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] border-b border-[#1F1F23] pb-3">
+                      <span className="pl-4">Harga Pokok Penjualan (HPP) / COGS (45%)</span>
+                      <span>({formatCurrency(financialData.hpp)})</span>
+                    </div>
+
+                    {/* Laba Kotor */}
+                    <div className="flex justify-between py-2 text-sm font-bold text-emerald-400 bg-emerald-500/5 px-3 rounded-lg">
+                      <span>LABA KOTOR (GROSS PROFIT)</span>
+                      <span>{formatCurrency(financialData.labaKotor)}</span>
+                    </div>
+
+                    {/* Beban Operasional Header */}
+                    <div className="pt-2 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">
+                      <span>Beban Operasional:</span>
+                    </div>
+
+                    {/* Platform Fee */}
+                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] pl-4">
+                      <span>Biaya Layanan Platform ({(financialData.platformFeeRate * 100).toFixed(1)}%)</span>
+                      <span>({formatCurrency(financialData.platformFee)})</span>
+                    </div>
+
+                    {/* Ad Spend */}
+                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] pl-4">
+                      <span>Biaya Iklan (Direct Ad Spend)</span>
+                      <span>({formatCurrency(financialData.adSpend)})</span>
+                    </div>
+
+                    {/* Affiliate Commission */}
+                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] pl-4 border-b border-[#1F1F23] pb-3">
+                      <span>Komisi Afiliasi Kreator (Est. 8%)</span>
+                      <span>({formatCurrency(financialData.affiliateCommission)})</span>
+                    </div>
+
+                    {/* Total Beban Operasional */}
+                    <div className="flex justify-between py-2 text-sm font-semibold text-white px-3">
+                      <span>Total Beban Operasional</span>
+                      <span>({formatCurrency(financialData.totalExpenses)})</span>
+                    </div>
+
+                    {/* Laba Bersih */}
+                    <div className="flex justify-between py-3 text-base font-bold text-white bg-[#11112B] border border-[#3D4BFF]/30 px-3 rounded-lg shadow-[0_0_15px_rgba(61,75,255,0.1)]">
+                      <span>LABA BERSIH (NET PROFIT)</span>
+                      <span className={financialData.labaBersih >= 0 ? "text-emerald-400" : "text-rose-450"}>
+                        {formatCurrency(financialData.labaBersih)}
+                      </span>
+                    </div>
+
+                    {/* NPM Ratio */}
+                    <div className="flex justify-between py-1 text-xs font-semibold text-[#8E8E95] px-3">
+                      <span>Margin Laba Bersih (NPM)</span>
+                      <span className={financialData.labaBersih >= 0 ? "text-emerald-400 font-bold" : "text-rose-450 font-bold"}>
+                        {financialData.npm.toFixed(2)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Visual Expense progressive visualizer */}
+                <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Struktur Alokasi Pendapatan</h3>
+                    <p className="text-sm text-[#8E8E95] mt-1">Representasi pembagian GMV terhadap biaya dan profitabilitas</p>
+
+                    {/* Horizontal Segmented Bar */}
+                    <div className="mt-6 space-y-2">
+                      <div className="h-4 w-full rounded-full overflow-hidden flex bg-zinc-800">
+                        {/* HPP/COGS Segment (45%) */}
+                        <div 
+                          style={{ width: '45%' }} 
+                          className="h-full bg-orange-500/80" 
+                          title="HPP: 45%"
+                        />
+                        {/* Platform Fee Segment */}
+                        {financialData.gmv > 0 && financialData.platformFee > 0 && (
+                          <div 
+                            style={{ width: `${(financialData.platformFee / financialData.gmv) * 100}%` }} 
+                            className="h-full bg-blue-500/80" 
+                            title={`Platform Fee: ${((financialData.platformFee / financialData.gmv) * 100).toFixed(1)}%`}
+                          />
+                        )}
+                        {/* Ad Spend Segment */}
+                        {financialData.gmv > 0 && financialData.adSpend > 0 && (
+                          <div 
+                            style={{ width: `${(financialData.adSpend / financialData.gmv) * 100}%` }} 
+                            className="h-full bg-rose-500/80" 
+                            title={`Ad Spend: ${((financialData.adSpend / financialData.gmv) * 100).toFixed(1)}%`}
+                          />
+                        )}
+                        {/* Affiliate Commission Segment */}
+                        {financialData.gmv > 0 && financialData.affiliateCommission > 0 && (
+                          <div 
+                            style={{ width: `${(financialData.affiliateCommission / financialData.gmv) * 100}%` }} 
+                            className="h-full bg-violet-500/80" 
+                            title={`Affiliate: ${((financialData.affiliateCommission / financialData.gmv) * 100).toFixed(1)}%`}
+                          />
+                        )}
+                        {/* Net Profit Segment */}
+                        {financialData.gmv > 0 && financialData.labaBersih > 0 && (
+                          <div 
+                            style={{ width: `${financialData.npm}%` }} 
+                            className="h-full bg-emerald-500/80" 
+                            title={`Laba Bersih: ${financialData.npm.toFixed(1)}%`}
+                          />
+                        )}
+                      </div>
+
+                      {/* Legend Grid */}
+                      <div className="grid grid-cols-2 gap-3 pt-4 text-xs font-medium">
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded bg-orange-500/80" />
+                          <span className="text-[#8E8E95]">HPP / COGS (45%)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded bg-blue-500/80" />
+                          <span className="text-[#8E8E95]">Platform Fee ({(financialData.platformFeeRate * 100).toFixed(1)}%)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded bg-rose-500/80" />
+                          <span className="text-[#8E8E95]">Ad Spend ({financialData.gmv > 0 ? ((financialData.adSpend / financialData.gmv) * 100).toFixed(1) : 0}%)</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-3 w-3 rounded bg-violet-500/80" />
+                          <span className="text-[#8E8E95]">Affiliate ({financialData.gmv > 0 ? ((financialData.affiliateCommission / financialData.gmv) * 100).toFixed(1) : 0}%)</span>
+                        </div>
+                        <div className="flex items-center gap-2 col-span-2 border-t border-[#1F1F23] pt-2 mt-1">
+                          <div className="h-3 w-3 rounded bg-emerald-500/80" />
+                          <span className="text-white font-bold">Laba Bersih / NPM ({financialData.npm.toFixed(1)}%)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Individual breakdown progressive bars */}
+                  <div className="mt-8 space-y-4">
+                    <h4 className="text-xs font-bold text-white uppercase tracking-wider text-left">Alokasi Biaya Terperinci</h4>
+                    
+                    {/* HPP Bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-[#8E8E95]">Harga Pokok Penjualan (HPP)</span>
+                        <span className="text-white">45.0%</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-zinc-800">
+                        <div className="h-full rounded-full bg-gradient-to-r from-orange-600 to-orange-400" style={{ width: '45%' }} />
+                      </div>
+                    </div>
+
+                    {/* Platform Fee Bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-[#8E8E95]">Marketplace Fee</span>
+                        <span className="text-white">{financialData.gmv > 0 ? ((financialData.platformFee / financialData.gmv) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-zinc-800">
+                        <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-400" style={{ width: `${financialData.gmv > 0 ? (financialData.platformFee / financialData.gmv) * 100 : 0}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Ad Spend Bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-[#8E8E95]">Ads Budget (CPAS / CPC)</span>
+                        <span className="text-white">{financialData.gmv > 0 ? ((financialData.adSpend / financialData.gmv) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-zinc-800">
+                        <div className="h-full rounded-full bg-gradient-to-r from-rose-600 to-rose-400" style={{ width: `${financialData.gmv > 0 ? (financialData.adSpend / financialData.gmv) * 100 : 0}%` }} />
+                      </div>
+                    </div>
+
+                    {/* Affiliate Bar */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-[#8E8E95]">Affiliate Commission</span>
+                        <span className="text-white">{financialData.gmv > 0 ? ((financialData.affiliateCommission / financialData.gmv) * 100).toFixed(1) : 0}%</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-zinc-800">
+                        <div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-violet-400" style={{ width: `${financialData.gmv > 0 ? (financialData.affiliateCommission / financialData.gmv) * 100 : 0}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: KOMISI */}
+          {activeTab.startsWith("komisi-") && financialData && (
+            <div className="space-y-8 mt-4 text-left">
+              {/* Dynamic metric summaries grid */}
+              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                <MetricCard
+                  label="Total Pengeluaran Komisi"
+                  value={financialData.affiliateCommission}
+                  format="currency"
+                  icon={Coins}
+                  description="Estimasi 8% komisi kreator afiliasi"
+                />
+                <MetricCard
+                  label="GMV Melalui Afiliasi"
+                  value={financialData.affiliateGmv}
+                  format="currency"
+                  icon={DollarSign}
+                  description={`Porsi: ${financialData.gmv > 0 ? ((financialData.affiliateGmv / financialData.gmv) * 100).toFixed(1) : 0}% dari total GMV`}
+                />
+                <MetricCard
+                  label="Direct Sales GMV (Non-Afiliasi)"
+                  value={financialData.directGmv}
+                  format="currency"
+                  icon={Store}
+                  description={`Porsi: ${financialData.gmv > 0 ? ((financialData.directGmv / financialData.gmv) * 100).toFixed(1) : 0}% dari total GMV`}
+                />
+              </div>
+
+              {/* Visual Breakdown and Top Creator Leaderboard */}
+              <div className="grid gap-6 lg:grid-cols-3">
+                
+                {/* Direct vs Affiliate Sales progress block */}
+                <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm flex flex-col justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Saluran Kontribusi GMV</h3>
+                    <p className="text-sm text-[#8E8E95] mt-1">Perbandingan antara penjualan langsung (Direct) vs pemasaran kreator afiliasi</p>
+                    
+                    <div className="mt-8 space-y-6">
+                      {/* Direct GMV */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-sm font-semibold text-white">Direct Sales</span>
+                          <span className="text-xs text-[#8E8E95]">
+                            {financialData.gmv > 0 ? ((financialData.directGmv / financialData.gmv) * 100).toFixed(1) : 0}%
+                          </span>
+                        </div>
+                        <div className="text-lg font-bold text-[#3D4BFF]">{formatCurrency(financialData.directGmv)}</div>
+                        <div className="h-2.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+                          <div 
+                            className="h-full rounded-full bg-gradient-to-r from-[#3D4BFF] to-[#6c79ff]" 
+                            style={{ width: `${financialData.gmv > 0 ? (financialData.directGmv / financialData.gmv) * 100 : 0}%` }} 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Affiliate GMV */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-baseline">
+                          <span className="text-sm font-semibold text-white">Affiliate Marketing</span>
+                          <span className="text-xs text-[#8E8E95]">
+                            {financialData.gmv > 0 ? ((financialData.affiliateGmv / financialData.gmv) * 100).toFixed(1) : 0}%
+                          </span>
+                        </div>
+                        <div className="text-lg font-bold text-violet-400">{formatCurrency(financialData.affiliateGmv)}</div>
+                        <div className="h-2.5 w-full rounded-full bg-zinc-800 overflow-hidden">
+                          <div 
+                            className="h-full rounded-full bg-gradient-to-r from-violet-600 to-violet-400" 
+                            style={{ width: `${financialData.gmv > 0 ? (financialData.affiliateGmv / financialData.gmv) * 100 : 0}%` }} 
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 border-t border-[#1F1F23] pt-4 text-xs text-[#8E8E95] text-left leading-relaxed">
+                    Pemasaran afiliasi mengandalkan program komisi (model 8%) untuk live streamer dan pembuat video TikTok. Direct sales dikembangkan melalui organic campaign dan direct advertisement.
+                  </div>
+                </div>
+
+                {/* Top Affiliate Creators Leaderboard */}
+                <div className="lg:col-span-2 rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
+                  <div className="mb-6 flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-bold text-white">Top Affiliate Creators</h3>
+                      <p className="text-sm text-[#8E8E95] mt-1">Kreator dengan performa kontribusi GMV teratas bulan ini</p>
+                    </div>
+                    <span className="inline-flex items-center rounded-full bg-[#11112B] border border-[#3D4BFF]/20 px-3 py-1 text-xs font-bold text-violet-400">
+                      Live & Video
+                    </span>
+                  </div>
+
+                  {financialData.topAffiliates.length === 0 ? (
+                    <div className="py-12 text-center text-sm text-[#8E8E95]">
+                      Tidak ada data kreator afiliasi terdeteksi untuk periode ini.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto custom-scrollbar">
+                      <table className="w-full text-left border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-[#1F1F23] text-[#8E8E95] font-bold text-xs uppercase tracking-wider">
+                            <th className="py-3 px-3">Peringkat & Nama</th>
+                            <th className="py-3 px-3">Sumber Saluran</th>
+                            <th className="py-3 px-3 text-right">GMV Teratribusi</th>
+                            <th className="py-3 px-3 text-right">Produk Terjual</th>
+                            <th className="py-3 px-3 text-right">Total Views</th>
+                            <th className="py-3 px-3 text-right text-violet-400">Estimasi Komisi</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-[#1F1F23] text-zinc-300">
+                          {financialData.topAffiliates.map((item, index) => (
+                            <tr key={item.creator} className="hover:bg-[#1C1C21]/30 transition-colors group">
+                              <td className="py-3.5 px-3 flex items-center gap-3 text-left">
+                                <span className={cn(
+                                  "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shrink-0",
+                                  index === 0 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
+                                  index === 1 ? "bg-zinc-400/20 text-zinc-300 border border-zinc-400/30" :
+                                  index === 2 ? "bg-amber-700/20 text-amber-600 border border-amber-700/30" :
+                                  "bg-zinc-800 text-zinc-400"
+                                )}>
+                                  {index + 1}
+                                </span>
+                                <div className="text-left">
+                                  <span className="font-semibold text-white group-hover:text-violet-400 transition-colors">
+                                    @{item.creator}
+                                  </span>
+                                </div>
+                              </td>
+                              <td className="py-3.5 px-3 text-left">
+                                <span className={cn(
+                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                  item.source === "LIVE" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
+                                  item.source === "Video" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                                  "bg-violet-500/10 text-violet-400 border border-violet-500/20"
+                                )}>
+                                  {item.source}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-semibold text-white">
+                                {formatCurrency(item.gmv)}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-mono text-xs">
+                                {formatNumber(item.orders)} unit
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-mono text-xs text-[#8E8E95]">
+                                {formatNumber(item.views)}
+                              </td>
+                              <td className="py-3.5 px-3 text-right font-bold text-violet-400">
+                                {formatCurrency(item.estimatedCommission)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* TAB 2: PRODUCTS */}
-          {activeTab === "products" && (
+          {(activeTab === "products" || activeTab.startsWith("products-")) && (
             <div className="space-y-6">
               {/* Product top stats metrics */}
               <div className="grid gap-6 sm:grid-cols-3">

@@ -21,6 +21,8 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
     "gmv-max": true,
     "finance": true,
     "shopee": true,
+    "tiktok": false,
+    "meta": false,
   });
 
   const toggleSection = (section: string) => {
@@ -101,7 +103,7 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="h-2 w-2 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
           <span className="text-sm font-bold tracking-tight text-white whitespace-nowrap">
-            Mendadak Tools
+            Channel Analytics Dashboard
           </span>
         </div>
       </div>
@@ -172,7 +174,7 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
                   <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-2 pl-1">
                     <NavItem id="komisi-shopee" label="Komisi Shopee" isNested />
                     <NavItem id="laba-rugi-shopee" label="Laba Rugi" isNested />
-                    <NavItem id="products" label="Analisa Produk" isNested />
+                    <NavItem id="products-shopee" label="Analisa Produk" isNested />
                   </div>
                 )}
               </div>
@@ -180,6 +182,7 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
               {/* TikTok Shop Sub-group */}
               <div className="mt-2">
                 <button 
+                  onClick={() => toggleSection("tiktok")}
                   className="flex w-full items-center justify-between py-2 text-sm font-semibold text-[#F4F4F6] hover:text-white"
                 >
                   <div className="flex items-center gap-2">
@@ -188,8 +191,38 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
                     </div>
                     <span>TikTok Shop</span>
                   </div>
-                  <ChevronRight className="h-3 w-3 text-[#8E8E95]" />
+                  {openSections["tiktok"] ? <ChevronDown className="h-3 w-3 text-[#8E8E95]" /> : <ChevronRight className="h-3 w-3 text-[#8E8E95]" />}
                 </button>
+                {openSections["tiktok"] && (
+                  <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-2 pl-1">
+                    <NavItem id="komisi-tiktok" label="Komisi TikTok" isNested />
+                    <NavItem id="laba-rugi-tiktok" label="Laba Rugi" isNested />
+                    <NavItem id="products-tiktok" label="Analisa Produk" isNested />
+                  </div>
+                )}
+              </div>
+
+              {/* Meta Ads Sub-group */}
+              <div className="mt-2">
+                <button 
+                  onClick={() => toggleSection("meta")}
+                  className="flex w-full items-center justify-between py-2 text-sm font-semibold text-[#F4F4F6] hover:text-white"
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-[#1877F2] text-[10px] font-bold text-white">
+                      M
+                    </div>
+                    <span>Meta Ads</span>
+                  </div>
+                  {openSections["meta"] ? <ChevronDown className="h-3 w-3 text-[#8E8E95]" /> : <ChevronRight className="h-3 w-3 text-[#8E8E95]" />}
+                </button>
+                {openSections["meta"] && (
+                  <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-2 pl-1">
+                    <NavItem id="komisi-meta" label="Komisi Meta Ads" isNested />
+                    <NavItem id="laba-rugi-meta" label="Laba Rugi" isNested />
+                    <NavItem id="products-meta" label="Analisa Produk" isNested />
+                  </div>
+                )}
               </div>
 
             </div>
