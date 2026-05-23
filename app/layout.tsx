@@ -23,7 +23,7 @@ export default function RootLayout({
       lang="id"
       className={`${figtree.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col bg-[#0B0B0C] text-[#F4F4F6] font-sans selection:bg-rose-500/30">
+      <body className="min-h-full flex flex-col bg-background text-foreground font-sans selection:bg-rose-500/30 transition-colors duration-300">
         {children}
       </body>
     </html>

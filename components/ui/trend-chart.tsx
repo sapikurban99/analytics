@@ -41,8 +41,8 @@ interface TrendChartProps {
 export default function TrendChart({ dataPoints, platform: _platform, className }: TrendChartProps) {
   if (!dataPoints || dataPoints.length === 0) {
     return (
-      <Card className="flex h-80 items-center justify-center border border-[#1F1F23] bg-[#131316] p-6">
-        <p className="text-sm text-[#8E8E95]">No daily trends data available</p>
+      <Card className="flex h-80 items-center justify-center border border-border bg-card p-6">
+        <p className="text-sm text-muted-foreground">No daily trends data available</p>
       </Card>
     );
   }
@@ -77,7 +77,7 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
         borderColor: "#10B981", // Emerald
         borderWidth: 3,
         pointBackgroundColor: "#10B981",
-        pointBorderColor: "#131316",
+        pointBorderColor: "var(--card, #131316)",
         pointBorderWidth: 2,
         pointRadius: 4,
         pointHoverRadius: 6,
@@ -100,7 +100,7 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
         borderColor: "#3B82F6", // Blue
         borderWidth: 3,
         pointBackgroundColor: "#3B82F6",
-        pointBorderColor: "#131316",
+        pointBorderColor: "var(--card, #131316)",
         pointBorderWidth: 2,
         pointRadius: 4,
         pointHoverRadius: 6,
@@ -127,9 +127,9 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
         display: false,
       },
       tooltip: {
-        backgroundColor: "#1F1F23",
-        titleColor: "#F4F4F6",
-        bodyColor: "#8E8E95",
+        backgroundColor: "rgba(15, 15, 17, 0.95)",
+        titleColor: "#FFFFFF",
+        bodyColor: "#A1A1AA",
         borderColor: "rgba(255,255,255,0.1)",
         borderWidth: 1,
         padding: 12,
@@ -172,7 +172,7 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
       },
       y: {
         grid: {
-          color: "rgba(255, 255, 255, 0.05)",
+          color: "rgba(142, 142, 149, 0.1)",
         },
         ticks: {
           color: "#8E8E95",
@@ -196,20 +196,20 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
   };
 
   return (
-    <Card className={cn("border border-[#1F1F23] bg-[#131316] p-6 shadow-sm", className)}>
-      <div className="mb-6 flex items-center justify-between">
+    <Card className={cn("border border-border bg-card p-6 shadow-sm", className)}>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-bold text-white">Grafik Tren</h3>
-          <p className="text-sm text-[#8E8E95]">Revenue vs Cost Over Time</p>
+          <h3 className="text-lg font-bold text-foreground">Grafik Tren</h3>
+          <p className="text-sm text-muted-foreground">Revenue vs Cost Over Time</p>
         </div>
         <div className="flex gap-4">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-emerald-500"></div>
-            <span className="text-xs font-semibold text-[#8E8E95]">Revenue</span>
+            <span className="text-xs font-semibold text-muted-foreground">Revenue</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-            <span className="text-xs font-semibold text-[#8E8E95]">Cost</span>
+            <span className="text-xs font-semibold text-muted-foreground">Cost</span>
           </div>
         </div>
       </div>

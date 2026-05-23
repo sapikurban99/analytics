@@ -6,6 +6,7 @@ import MetricCard from "@/components/ui/metric-card";
 import DataTable, { ColumnDef } from "@/components/ui/data-table";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { DashboardData, ConsolidatedProduct } from "@/lib/db";
+import { cn } from "@/lib/utils";
 
 interface Props {
   dashboardData: DashboardData;
@@ -17,14 +18,14 @@ interface Props {
 export default function ProductPerformance({ dashboardData, selectedPlatform, filteredProducts, setFilteredProducts }: Props) {
   const productColumns: ColumnDef<ConsolidatedProduct>[] = [
     { key: "name", header: "Product Name", sortable: true, render: (p: ConsolidatedProduct) => (
-      <div className="max-w-xs sm:max-w-sm"><p className="truncate font-semibold text-white" title={p.name}>{p.name}</p></div>
+      <div className="max-w-xs sm:max-w-sm"><p className="truncate font-semibold text-foreground" title={p.name}>{p.name}</p></div>
     )},
     { key: "status", header: "Status", sortable: true, align: "center", render: (p: ConsolidatedProduct) => (
-      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${p.status === "Active" ? "bg-emerald-950/30 text-emerald-400" : "bg-zinc-800 text-zinc-500"}`}>{p.status}</span>
+      <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold", p.status === "Active" ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>{p.status}</span>
     )},
     ...(selectedPlatform === "All" ? [
-      { key: "shopeeGmv", header: "Shopee GMV", sortable: true, align: "right" as const, render: (p: ConsolidatedProduct) => <span className="text-zinc-350">{formatCurrency(p.shopeeGmv)}</span> },
-      { key: "tiktokGmv", header: "TikTok GMV", sortable: true, align: "right" as const, render: (p: ConsolidatedProduct) => <span className="text-zinc-350">{formatCurrency(p.tiktokGmv)}</span> },
+      { key: "shopeeGmv", header: "Shopee GMV", sortable: true, align: "right" as const, render: (p: ConsolidatedProduct) => <span className="text-muted-foreground">{formatCurrency(p.shopeeGmv)}</span> },
+      { key: "tiktokGmv", header: "TikTok GMV", sortable: true, align: "right" as const, render: (p: ConsolidatedProduct) => <span className="text-muted-foreground">{formatCurrency(p.tiktokGmv)}</span> },
       { key: "combinedGmv", header: "Total GMV", sortable: true, align: "right" as const, render: (p: ConsolidatedProduct) => <span className="font-semibold text-rose-500">{formatCurrency(p.combinedGmv)}</span> },
       { key: "combinedItemsSold", header: "Items Sold", sortable: true, align: "right" as const, render: (p: ConsolidatedProduct) => <span>{formatNumber(p.combinedItemsSold)}</span> },
     ] : [

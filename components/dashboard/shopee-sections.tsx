@@ -37,7 +37,7 @@ export function ShopeeOverview({ dashboardData }: Props) {
     <div className="space-y-8 mt-4">
       {/* Row 1: Financial KPI */}
       <div>
-        <h2 className="text-lg font-bold text-white mb-4">Financial KPI</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">Financial KPI</h2>
         <div className="grid gap-6 sm:grid-cols-3">
           <MetricCard label="Revenue" value={gmv} format="currency" icon={DollarSign} />
           <MetricCard label="Spend Ads" value={adsCost} format="currency" icon={TrendingUp} />
@@ -47,8 +47,8 @@ export function ShopeeOverview({ dashboardData }: Props) {
 
       {/* Row 2: Operational KPI */}
       <div>
-        <h2 className="text-lg font-bold text-white mb-4">Operational KPI</h2>
-        <div className="grid gap-6 sm:grid-cols-5">
+        <h2 className="text-lg font-bold text-foreground mb-4">Operational KPI</h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard label="Orders" value={orders} format="number" icon={ShoppingBag} />
           <MetricCard label="Items Sold" value={itemsSold} format="number" icon={Store} />
           <MetricCard label="Visitors" value={visitors} format="number" icon={Users} />
@@ -59,7 +59,7 @@ export function ShopeeOverview({ dashboardData }: Props) {
 
       {/* Daily Trend */}
       <div>
-        <h3 className="text-lg font-bold text-white mb-4">Grafik Tren Daily Shopee</h3>
+        <h3 className="text-lg font-bold text-foreground mb-4">Grafik Tren Daily Shopee</h3>
         <TrendChart dataPoints={dashboardData.dailyTrends} platform="Shopee" />
       </div>
     </div>
@@ -79,7 +79,7 @@ export function ShopeeProductAnalyz({ dashboardData }: Props) {
   };
 
   const columns = useMemo<ColumnDef<ConsolidatedProduct>[]>(() => [
-    { key: "name", header: "Product Name", sortable: true, render: (p) => <div className="max-w-xs"><p className="truncate font-semibold text-white" title={p.name}>{p.name}</p></div> },
+    { key: "name", header: "Product Name", sortable: true, render: (p) => <div className="max-w-xs"><p className="truncate font-semibold text-foreground" title={p.name}>{p.name}</p></div> },
     { key: "shopeeGmv", header: "Revenue", sortable: true, align: "right", render: (p) => <span className="font-semibold text-rose-500">{formatCurrency(p.shopeeGmv)}</span> },
     { key: "shopeeItemsSold", header: "Qty Sold", sortable: true, align: "right" },
     {
@@ -113,7 +113,7 @@ export function ShopeeProductAnalyz({ dashboardData }: Props) {
       render: (p) => {
         const seed = getProductSeed(p.name);
         const ctr = 0.04 + (seed % 8) * 0.01;
-        return <span className="text-emerald-500">{formatPercent(ctr)}</span>;
+        return <span className="text-emerald-500 font-semibold">{formatPercent(ctr)}</span>;
       }
     },
     { key: "orders", header: "Orders", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.shopeeItemsSold)}</span> },
@@ -136,7 +136,7 @@ export function ShopeeProductAnalyz({ dashboardData }: Props) {
       render: (p) => {
         const seed = getProductSeed(p.name);
         const atcRate = 0.1 + (seed % 20) * 0.01;
-        return <span className="text-emerald-500">{formatPercent(atcRate)}</span>;
+        return <span className="text-emerald-500 font-semibold">{formatPercent(atcRate)}</span>;
       }
     },
   ], []);
@@ -166,28 +166,28 @@ export function ShopeeChannelAnalyz({ dashboardData }: Props) {
 
   return (
     <div className="space-y-8 mt-4">
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-2">Total Omzet Shopee</h3>
-        <p className="text-3xl font-bold text-white mb-6">{formatCurrency(gmv)}</p>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-2">Total Omzet Shopee</h3>
+        <p className="text-3xl font-bold text-foreground mb-6">{formatCurrency(gmv)}</p>
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#1F1F23] text-[#8E8E95] text-xs font-bold uppercase tracking-wider">
+              <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-3">Revenue Stream Name</th>
                 <th className="py-3 px-3 text-right">Total Revenue (Rp)</th>
                 <th className="py-3 px-3 text-right">Kontribusi %</th>
                 <th className="py-3 px-3 text-right">Growth Last Month (MoM)</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1F1F23] text-zinc-300">
+            <tbody className="divide-y divide-border text-foreground">
               {revenueStreams.map((rs, i) => (
-                <tr key={i} className="hover:bg-[#1C1C21]/30">
-                  <td className="py-3 px-3 font-semibold text-white">{rs.name}</td>
+                <tr key={i} className="hover:bg-muted/20 transition-colors">
+                  <td className="py-3 px-3 font-semibold text-foreground">{rs.name}</td>
                   <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(rs.value)}</td>
                   <td className="py-3 px-3 text-right">{((rs.value / gmv) * 100).toFixed(1)}%</td>
                   <td className="py-3 px-3 text-right">
-                    <span className={cn("font-bold", rs.growth >= 0 ? "text-emerald-400" : "text-rose-400")}>
+                    <span className={cn("font-bold", rs.growth >= 0 ? "text-emerald-500" : "text-rose-500")}>
                       {rs.growth >= 0 ? "+" : ""}{rs.growth.toFixed(1)}%
                     </span>
                   </td>
@@ -218,12 +218,12 @@ export function ShopeeAffiliateAnalyz({ dashboardData }: Props) {
 
   return (
     <div className="space-y-8 mt-4">
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Affiliate Analyz (KOL Shopee Share)</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Affiliate Analyz (KOL Shopee Share)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#1F1F23] text-[#8E8E95] text-xs font-bold uppercase tracking-wider">
+              <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-3">Affiliate Name</th>
                 <th className="py-3 px-3 text-right">Sales (Rp)</th>
                 <th className="py-3 px-3 text-right">Items Sold</th>
@@ -233,16 +233,16 @@ export function ShopeeAffiliateAnalyz({ dashboardData }: Props) {
                 <th className="py-3 px-3 text-right">ROI</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1F1F23] text-zinc-300">
+            <tbody className="divide-y divide-border text-foreground">
               {affiliates.map((a) => (
-                <tr key={a.name} className="hover:bg-[#1C1C21]/30">
-                  <td className="py-3 px-3 font-semibold text-white">{a.name}</td>
+                <tr key={a.name} className="hover:bg-muted/20 transition-colors">
+                  <td className="py-3 px-3 font-semibold text-foreground">{a.name}</td>
                   <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(a.sales)}</td>
                   <td className="py-3 px-3 text-right">{formatNumber(a.itemsSold)}</td>
                   <td className="py-3 px-3 text-right">{formatNumber(a.orders)}</td>
                   <td className="py-3 px-3 text-right">{formatNumber(a.clicks)}</td>
-                  <td className="py-3 px-3 text-right font-bold text-violet-400">{formatCurrency(a.commission)}</td>
-                  <td className="py-3 px-3 text-right font-bold text-emerald-400">{(a.sales / Math.max(1, a.commission)).toFixed(2)}x</td>
+                  <td className="py-3 px-3 text-right font-bold text-violet-500 dark:text-violet-400">{formatCurrency(a.commission)}</td>
+                  <td className="py-3 px-3 text-right font-bold text-emerald-500 dark:text-emerald-400">{(a.sales / Math.max(1, a.commission)).toFixed(2)}x</td>
                 </tr>
               ))}
             </tbody>

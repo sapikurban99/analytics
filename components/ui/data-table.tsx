@@ -166,7 +166,7 @@ export default function DataTable<T extends Record<string, any>>({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {searchFields.length > 0 && (
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-zinc-400 dark:text-zinc-500" />
+            <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-muted-foreground" />
             <input
               type="text"
               placeholder={searchPlaceholder}
@@ -175,7 +175,7 @@ export default function DataTable<T extends Record<string, any>>({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="h-10 w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] pl-10 pr-8 text-sm outline-none transition-all placeholder:text-[#8E8E95] focus:border-[#3D4BFF]/50 text-white focus:ring-1 focus:ring-[#3D4BFF]/50"
+              className="h-10 w-full rounded-xl border border-border bg-background pl-10 pr-8 text-sm outline-none transition-all placeholder:text-muted-foreground focus:border-[#3D4BFF]/50 text-foreground focus:ring-1 focus:ring-[#3D4BFF]/50"
             />
             {searchQuery && (
               <button
@@ -183,7 +183,7 @@ export default function DataTable<T extends Record<string, any>>({
                   setSearchQuery("");
                   setCurrentPage(1);
                 }}
-                className="absolute right-3 top-2.5 rounded-full p-0.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-850 dark:hover:text-zinc-200"
+                className="absolute right-3 top-2.5 rounded-full p-0.5 text-muted-foreground hover:bg-muted/50 hover:text-foreground cursor-pointer"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -192,7 +192,7 @@ export default function DataTable<T extends Record<string, any>>({
         )}
 
         <div className="flex items-center gap-2 self-end sm:self-center">
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          <span className="text-xs font-medium text-muted-foreground">
             Show
           </span>
           <select
@@ -201,7 +201,7 @@ export default function DataTable<T extends Record<string, any>>({
               setPageSize(Number(e.target.value));
               setCurrentPage(1);
             }}
-            className="rounded-xl border border-zinc-200 bg-white px-2 py-1.5 text-xs font-semibold text-zinc-700 outline-none dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300"
+            className="rounded-xl border border-border bg-card px-2 py-1.5 text-xs font-semibold text-foreground outline-none cursor-pointer"
           >
             {[10, 25, 50, 100].map((size) => (
               <option key={size} value={size}>
@@ -209,22 +209,22 @@ export default function DataTable<T extends Record<string, any>>({
               </option>
             ))}
           </select>
-          <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          <span className="text-xs font-medium text-muted-foreground">
             entries
           </span>
         </div>
       </div>
 
       {/* Main Table component */}
-      <div className="overflow-hidden rounded-xl border border-[#1F1F23] bg-[#131316]">
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
-          <TableHeader className="bg-[#11112B]">
-            <TableRow className="border-b border-[#1F1F23] hover:bg-transparent">
+          <TableHeader className="bg-[#3D4BFF]/5 dark:bg-[#3D4BFF]/10">
+            <TableRow className="border-b border-border hover:bg-transparent">
               {columns.map((col) => (
                 <TableHead
                   key={col.key}
                   className={cn(
-                    "h-12 px-4 text-xs font-bold tracking-wider text-[#8E8E95] uppercase",
+                    "h-12 px-4 text-xs font-bold tracking-wider text-muted-foreground uppercase",
                     col.align === "center" && "text-center",
                     col.align === "right" && "text-right"
                   )}
@@ -233,7 +233,7 @@ export default function DataTable<T extends Record<string, any>>({
                     <button
                       onClick={() => requestSort(col.key)}
                       className={cn(
-                        "group inline-flex items-center hover:text-zinc-800 dark:hover:text-zinc-200",
+                        "group inline-flex items-center hover:text-foreground cursor-pointer",
                         col.align === "center" && "mx-auto justify-center",
                         col.align === "right" && "ml-auto justify-end"
                       )}
@@ -251,7 +251,7 @@ export default function DataTable<T extends Record<string, any>>({
           <TableBody>
             {paginatedData.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-32 text-center text-zinc-400">
+                <TableCell colSpan={columns.length} className="h-32 text-center text-muted-foreground">
                   Tidak ada data yang cocok dengan kriteria pencarian.
                 </TableCell>
               </TableRow>
@@ -259,13 +259,13 @@ export default function DataTable<T extends Record<string, any>>({
               paginatedData.map((item, rowIdx) => (
                 <TableRow
                   key={rowIdx}
-                  className="border-b border-[#1F1F23] transition-colors hover:bg-[#11112B]/50"
+                  className="border-b border-border transition-colors hover:bg-muted/20"
                 >
                   {columns.map((col) => (
                     <TableCell
                       key={col.key}
                       className={cn(
-                        "px-4 py-3.5 text-sm text-white",
+                        "px-4 py-3.5 text-sm text-foreground",
                         col.align === "center" && "text-center",
                         col.align === "right" && "text-right font-medium"
                       )}
@@ -282,10 +282,10 @@ export default function DataTable<T extends Record<string, any>>({
 
       {/* Pagination control block */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-2">
-        <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-          Showing <span className="text-zinc-800 dark:text-zinc-200">{startIndex}</span> to{" "}
-          <span className="text-zinc-800 dark:text-zinc-200">{endIndex}</span> of{" "}
-          <span className="text-zinc-800 dark:text-zinc-200">{totalEntries}</span> entries
+        <span className="text-xs font-semibold text-muted-foreground">
+          Showing <span className="text-foreground">{startIndex}</span> to{" "}
+          <span className="text-foreground">{endIndex}</span> of{" "}
+          <span className="text-foreground">{totalEntries}</span> entries
         </span>
 
         <div className="flex items-center gap-1.5">
@@ -294,7 +294,7 @@ export default function DataTable<T extends Record<string, any>>({
             size="sm"
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={activePage === 1}
-            className="h-8 w-8 rounded-lg border-zinc-200 p-0 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400"
+            className="h-8 w-8 rounded-lg border-border p-0 text-muted-foreground hover:bg-muted/40 cursor-pointer"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -309,17 +309,17 @@ export default function DataTable<T extends Record<string, any>>({
               return (
                 <React.Fragment key={p}>
                   {showEllipsis && (
-                    <span className="text-xs text-zinc-400 px-1 select-none">...</span>
+                    <span className="text-xs text-muted-foreground px-1 select-none">...</span>
                   )}
                   <Button
                     variant={activePage === p ? "default" : "outline"}
                     size="sm"
                     onClick={() => setCurrentPage(p)}
                     className={cn(
-                      "h-8 min-w-[32px] rounded-lg text-xs font-bold",
+                      "h-8 min-w-[32px] rounded-lg text-xs font-bold cursor-pointer",
                       activePage === p
-                        ? "bg-rose-500 text-white hover:bg-rose-600"
-                        : "border-zinc-200 text-zinc-650 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-400"
+                        ? "bg-rose-500 text-white hover:bg-rose-600 shadow-md shadow-rose-500/10"
+                        : "border-border text-foreground hover:bg-muted/40"
                     )}
                   >
                     {p}
@@ -333,7 +333,7 @@ export default function DataTable<T extends Record<string, any>>({
             size="sm"
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={activePage === totalPages}
-            className="h-8 w-8 rounded-lg border-zinc-200 p-0 text-zinc-600 dark:border-zinc-800 dark:text-zinc-400"
+            className="h-8 w-8 rounded-lg border-border p-0 text-muted-foreground hover:bg-muted/40 cursor-pointer"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>

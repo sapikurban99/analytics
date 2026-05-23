@@ -3,7 +3,8 @@
 import React, { useState, useMemo } from "react";
 import {
   getAvailableMonths,
-  getDashboardData,
+  getAvailableDateRange,
+  getDashboardDataByDateRange,
   ConsolidatedProduct,
   LiveSession,
   VideoMetric,
@@ -19,6 +20,10 @@ import {
   ShoppingBag,
   Coins,
   ArrowDownRight,
+  Menu,
+  X,
+  Sun,
+  Moon,
 } from "lucide-react";
 import Sidebar from "@/components/ui/sidebar";
 import MetricCard from "@/components/ui/metric-card";
@@ -43,18 +48,18 @@ import {
   ShopeeAffiliateAnalyz,
 } from "@/components/dashboard/shopee-sections";
 import { WebsiteOverview, MetaAdsPerformance } from "@/components/dashboard/website-meta-sections";
+import DateRangePicker from "@/components/ui/date-range-picker";
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [selectedMonth, setSelectedMonth] = useState("2026-04");
-  const [selectedPlatform, setSelectedPlatform] = useState<"All" | "Shopee" | "TikTok" | "Meta">("All");
+  const [dateRange, setDateRange] = useState<{ start: string; end: string }>({ start: '', end: '' });
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const selectedPlatform = 'All' as const;
 
   const handleActiveTabChange = (tab: string) => {
     setActiveTab(tab);
-  };
-
-  const handlePlatformFilterChange = (platform: "All" | "Shopee" | "TikTok" | "Meta") => {
-    setSelectedPlatform(platform);
+    setIsSidebarOpen(false); // Close sidebar on tab change for mobile
   };
 
   const [metricsData, setMetricsData] = useState<any>(null);
@@ -77,6 +82,25 @@ export default function Home() {
     fetchMetrics();
   }, []);
 
+  // Initialize theme from localStorage on client side
+  React.useEffect(() => {
+    const savedTheme = localStorage.getItem("tomeame_theme") as "dark" | "light" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+      document.documentElement.classList.toggle("dark", savedTheme === "dark");
+    } else {
+      setTheme("dark");
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    localStorage.setItem("tomeame_theme", nextTheme);
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+  };
+
   const [filteredProducts, setFilteredProducts] = useState<ConsolidatedProduct[]>([]);
   const [filteredLives, setFilteredLives] = useState<LiveSession[]>([]);
   const [filteredVideos, setFilteredVideos] = useState<VideoMetric[]>([]);
@@ -84,18 +108,19 @@ export default function Home() {
   const [filteredTiktokLiveAds, setFilteredTiktokLiveAds] = useState<TiktokLiveAdItem[]>([]);
   const [filteredTiktokProductAds, setFilteredTiktokProductAds] = useState<TiktokProductAdItem[]>([]);
 
-  const availableMonths = useMemo(() => getAvailableMonths(metricsData), [metricsData]);
+  const dateRangeInfo = useMemo(() => getAvailableDateRange(metricsData), [metricsData]);
+  const months = useMemo(() => getAvailableMonths(metricsData), [metricsData]);
 
-  const activeMonth = useMemo(() => {
-    if (availableMonths && availableMonths.length > 0) {
-      const exists = availableMonths.some((m) => m.key === selectedMonth);
-      if (exists) return selectedMonth;
-      return availableMonths[0].key;
+  React.useEffect(() => {
+    if (dateRangeInfo.minDate && dateRangeInfo.maxDate) {
+      setDateRange({ start: dateRangeInfo.minDate, end: dateRangeInfo.maxDate });
     }
-    return selectedMonth;
-  }, [availableMonths, selectedMonth]);
+  }, [dateRangeInfo.minDate, dateRangeInfo.maxDate]);
 
-  const dashboardData = useMemo(() => getDashboardData(activeMonth, selectedPlatform, metricsData), [activeMonth, selectedPlatform, metricsData]);
+  const dashboardData = useMemo(() => {
+    if (!dateRange.start || !dateRange.end) return null;
+    return getDashboardDataByDateRange(dateRange.start, dateRange.end, selectedPlatform, metricsData);
+  }, [dateRange, selectedPlatform, metricsData]);
 
   const getMetricIcon = (key: string) => {
     switch (key) {
@@ -110,9 +135,9 @@ export default function Home() {
 
   if (!dashboardData) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-[#0B0B0C] text-white">
+      <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground transition-colors duration-300">
         <div className="flex flex-col items-center gap-4">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-rose-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#3D4BFF] border-t-transparent" />
           <p className="text-sm font-semibold tracking-wide">Loading Tome Ame Analytics...</p>
         </div>
       </div>
@@ -175,64 +200,63 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0B0B0C] text-[#F4F4F6]">
-      <Sidebar activeTab={activeTab} setActiveTab={handleActiveTabChange} />
+    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground transition-colors duration-300">
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={handleActiveTabChange}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
 
       <div className="flex flex-1 flex-col overflow-y-auto relative custom-scrollbar">
         <div className="pointer-events-none absolute left-[20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[#3D4BFF]/5 blur-[120px]" />
         <div className="pointer-events-none absolute right-[10%] top-[20%] h-[400px] w-[400px] rounded-full bg-cyan-500/5 blur-[100px]" />
 
-        <main className="flex-1 p-8 space-y-8 z-10">
+        <main className="flex-1 p-4 md:p-8 space-y-8 z-10">
           {/* TOP HEADER */}
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-white">{getPageTitle()}</h1>
-              <p className="text-sm text-[#8E8E95] mt-1">{getPageDesc()}</p>
+          <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-6">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setIsSidebarOpen(true)}
+                className="md:hidden p-2.5 rounded-xl border border-border bg-card text-foreground hover:bg-muted/50 transition-colors shrink-0 shadow-sm"
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">{getPageTitle()}</h1>
+                <p className="text-sm text-muted-foreground mt-1">{getPageDesc()}</p>
+              </div>
             </div>
 
-            <div className="flex flex-col items-end gap-3">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center rounded-full border border-[#1F1F23] bg-[#131316] p-1">
-                  <div className="px-3 py-1 text-xs font-bold text-[#8E8E95]">PERIODE</div>
-                  <div className="h-4 w-px bg-[#1F1F23] mx-1"></div>
-                  <div className="flex gap-1">
-                    {availableMonths.slice(0, 3).map((month) => (
-                      <button
-                        key={month.key}
-                        onClick={() => setSelectedMonth(month.key)}
-                        className={cn(
-                          "rounded-full px-4 py-1.5 text-xs font-semibold transition-all",
-                          activeMonth === month.key
-                            ? "bg-[#11112B] text-white border border-[#3D4BFF]/50 shadow-[0_0_15px_rgba(61,75,255,0.2)]"
-                            : "text-[#8E8E95] hover:text-white border border-transparent"
-                        )}
-                      >
-                        {month.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button onClick={() => setSelectedMonth(availableMonths[0]?.key)} className="text-xs font-semibold text-[#8E8E95] hover:text-white transition-colors underline underline-offset-4">
-                  Reset
-                </button>
-              </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+              <DateRangePicker
+                startDate={dateRange.start}
+                endDate={dateRange.end}
+                minDate={dateRangeInfo.minDate}
+                maxDate={dateRangeInfo.maxDate}
+                onStartDateChange={(d) => setDateRange((prev) => ({ ...prev, start: d }))}
+                onEndDateChange={(d) => setDateRange((prev) => ({ ...prev, end: d }))}
+                onReset={() => setDateRange({ start: dateRangeInfo.minDate, end: dateRangeInfo.maxDate })}
+                availableMonths={months}
+              />
 
-              <div className="flex items-center gap-3">
-                <div className="flex items-center rounded-lg border border-[#1F1F23] bg-[#131316] p-1">
-                  <button onClick={() => handlePlatformFilterChange("All")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all", selectedPlatform === "All" ? "bg-[#2A2A32] text-white" : "text-[#8E8E95] hover:text-white")}>
-                    All Channel
-                  </button>
-                  <button onClick={() => handlePlatformFilterChange("Shopee")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Shopee" ? "bg-[#EE4D2D]/20 text-[#EE4D2D]" : "text-[#8E8E95] hover:text-white")}>
-                    Shopee
-                  </button>
-                  <button onClick={() => handlePlatformFilterChange("TikTok")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "TikTok" ? "bg-zinc-800 text-white" : "text-[#8E8E95] hover:text-white")}>
-                    TikTok
-                  </button>
-                  <button onClick={() => handlePlatformFilterChange("Meta")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Meta" ? "bg-[#1877F2]/20 text-[#1877F2]" : "text-[#8E8E95] hover:text-white")}>
-                    Meta Ads
-                  </button>
-                </div>
-                <button onClick={handleExport} className="rounded-lg bg-white text-black px-4 py-1.5 text-xs font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+              <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                <button
+                  onClick={toggleTheme}
+                  className="rounded-xl border border-border bg-card text-foreground p-2.5 hover:bg-muted/50 transition-all duration-200 flex items-center justify-center shadow-sm h-[38px] w-[38px] cursor-pointer"
+                  title={theme === "dark" ? "Mode Terang" : "Mode Gelap"}
+                >
+                  {theme === "dark" ? (
+                    <Sun className="h-4 w-4 text-yellow-400" />
+                  ) : (
+                    <Moon className="h-4 w-4 text-indigo-600" />
+                  )}
+                </button>
+
+                <button
+                  onClick={handleExport}
+                  className="rounded-xl bg-foreground text-background px-4 py-2 text-xs font-bold hover:bg-foreground/80 transition-all duration-200 flex items-center gap-2 shadow-sm h-[38px] cursor-pointer"
+                >
                   <ArrowDownRight className="h-4 w-4" /> Export CSV
                 </button>
               </div>

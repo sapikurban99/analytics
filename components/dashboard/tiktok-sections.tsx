@@ -8,10 +8,9 @@ import {
   Users,
   Percent,
   Coins,
-  Eye,
-  Play,
-  Tv,
   Store,
+  LineChart,
+  PieChart,
 } from "lucide-react";
 import MetricCard from "@/components/ui/metric-card";
 import TrendChart from "@/components/ui/trend-chart";
@@ -45,7 +44,7 @@ export function TikTokOverview({ dashboardData }: Props) {
     <div className="space-y-8 mt-4">
       {/* Row 1: Financial KPI */}
       <div>
-        <h2 className="text-lg font-bold text-white mb-4">Financial Metrics</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">Financial Metrics</h2>
         <div className="grid gap-6 sm:grid-cols-3">
           <MetricCard label="Revenue" value={gmv} format="currency" icon={DollarSign} />
           <MetricCard label="Spend Ads" value={adsCost} format="currency" icon={TrendingUp} />
@@ -55,8 +54,8 @@ export function TikTokOverview({ dashboardData }: Props) {
 
       {/* Row 2: Operational KPI */}
       <div>
-        <h2 className="text-lg font-bold text-white mb-4">Operational Metrics</h2>
-        <div className="grid gap-6 sm:grid-cols-5">
+        <h2 className="text-lg font-bold text-foreground mb-4">Operational Metrics</h2>
+        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
           <MetricCard label="Orders" value={orders} format="number" icon={ShoppingBag} />
           <MetricCard label="Items Sold" value={itemsSold} format="number" icon={Store} />
           <MetricCard label="Visitors" value={visitors} format="number" icon={Users} />
@@ -71,10 +70,10 @@ export function TikTokOverview({ dashboardData }: Props) {
       </div>
 
       {/* Revenue Composition */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Revenue Composition</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Revenue Composition</h3>
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="text-3xl font-bold text-white">{formatCurrency(gmv)}<p className="text-sm text-[#8E8E95] font-normal mt-1">Total Revenue</p></div>
+          <div className="text-3xl font-bold text-foreground">{formatCurrency(gmv)}<p className="text-sm text-muted-foreground font-normal mt-1">Total Revenue</p></div>
           <div className="space-y-4">
             {[
               { label: "Video", value: videoGmv, color: "bg-purple-500" },
@@ -83,10 +82,10 @@ export function TikTokOverview({ dashboardData }: Props) {
             ].map((item) => (
               <div key={item.label}>
                 <div className="flex justify-between text-sm mb-1">
-                  <span className="text-[#8E8E95]">{item.label}</span>
-                  <span className="text-white font-semibold">{formatCurrency(item.value)} <span className="text-[#8E8E95] font-normal">({totalRevenueComposition > 0 ? ((item.value / totalRevenueComposition) * 100).toFixed(1) : 0}%)</span></span>
+                  <span className="text-muted-foreground">{item.label}</span>
+                  <span className="text-foreground font-semibold">{formatCurrency(item.value)} <span className="text-muted-foreground font-normal">({totalRevenueComposition > 0 ? ((item.value / totalRevenueComposition) * 100).toFixed(1) : 0}%)</span></span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-zinc-800">
+                <div className="h-2 w-full rounded-full bg-muted">
                   <div className={`h-full rounded-full ${item.color}`} style={{ width: `${totalRevenueComposition > 0 ? (item.value / totalRevenueComposition) * 100 : 0}%` }} />
                 </div>
               </div>
@@ -126,7 +125,7 @@ function useProductAnalyzColumns(): ColumnDef<any>[] {
   };
 
   return [
-    { key: "name", header: "Product Name", sortable: true, render: (p) => <div className="max-w-xs"><p className="truncate font-semibold text-white" title={p.name}>{p.name}</p></div> },
+    { key: "name", header: "Product Name", sortable: true, render: (p) => <div className="max-w-xs"><p className="truncate font-semibold text-foreground" title={p.name}>{p.name}</p></div> },
     { key: "tiktokGmv", header: "Revenue", sortable: true, align: "right", render: (p) => <span className="font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</span> },
     { key: "tiktokItemsSold", header: "Qty Sold", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.tiktokItemsSold)}</span> },
     {
@@ -160,7 +159,7 @@ function useProductAnalyzColumns(): ColumnDef<any>[] {
       render: (p) => {
         const seed = getProductSeed(p.name);
         const ctr = 0.05 + (seed % 10) * 0.01;
-        return <span className="text-emerald-500">{formatPercent(ctr)}</span>;
+        return <span className="text-emerald-500 font-semibold">{formatPercent(ctr)}</span>;
       }
     },
     { key: "orders", header: "Orders", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.tiktokItemsSold)}</span> },
@@ -172,7 +171,7 @@ function useProductAnalyzColumns(): ColumnDef<any>[] {
       render: (p) => {
         const seed = getProductSeed(p.name);
         const ctor = 0.1 + (seed % 20) * 0.01;
-        return <span className="text-emerald-500">{formatPercent(ctor)}</span>;
+        return <span className="text-emerald-500 font-semibold">{formatPercent(ctor)}</span>;
       }
     },
     {
@@ -194,7 +193,7 @@ function useProductAnalyzColumns(): ColumnDef<any>[] {
       render: (p) => {
         const seed = getProductSeed(p.name);
         const atcRate = 0.15 + (seed % 15) * 0.01;
-        return <span className="text-emerald-500">{formatPercent(atcRate)}</span>;
+        return <span className="text-emerald-500 font-semibold">{formatPercent(atcRate)}</span>;
       }
     },
   ];
@@ -215,38 +214,40 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
   }, [dashboardData.lives, channelFilter]);
 
   const videoColumns: ColumnDef<VideoMetric>[] = [
-    { key: "creator", header: "Creator Name", sortable: true, render: (v) => <span className="font-semibold text-white">{v.creator}</span> },
-    { key: "title", header: "Video ID / Info", sortable: true, render: (v) => <div className="max-w-xs"><p className="truncate text-zinc-350" title={v.title}>{v.title}</p></div> },
+    { key: "creator", header: "Creator Name", sortable: true, render: (v) => <span className="font-semibold text-foreground">@{v.creator}</span> },
+    { key: "title", header: "Video ID / Info", sortable: true, render: (v) => <div className="max-w-xs"><p className="truncate text-muted-foreground" title={v.title}>{v.title}</p></div> },
     { key: "gmv", header: "GMV (Rp)", sortable: true, align: "right", render: (v) => <span className="font-semibold text-rose-500">{formatCurrency(v.gmv)}</span> },
     { key: "items_sold", header: "SKU Order", sortable: true, align: "right" },
     { key: "views", header: "VV (Views)", sortable: true, align: "right" },
     { key: "likes", header: "Likes", sortable: true, align: "right" },
-    { key: "ctr", header: "CTOR%", sortable: true, align: "right", render: (v) => <span className="text-emerald-500">{formatPercent(v.ctr)}</span> },
+    { key: "ctr", header: "CTOR%", sortable: true, align: "right", render: (v) => <span className="text-emerald-500 font-semibold">{formatPercent(v.ctr)}</span> },
   ];
 
   const liveColumns: ColumnDef<LiveSession>[] = [
-    { key: "creator_name", header: "Creator Name", sortable: true, render: (l) => <span className="font-semibold text-white">{l.creator_name}</span> },
+    { key: "creator_name", header: "Creator Name", sortable: true, render: (l) => <span className="font-semibold text-foreground">{l.creator_name}</span> },
     { key: "creator", header: "Creator ID", sortable: true },
     { key: "duration", header: "Duration LIVE", sortable: false, align: "center" },
     { key: "gmv", header: "GMV (Rp)", sortable: true, align: "right", render: (l) => <span className="font-semibold text-rose-500">{formatCurrency(l.gmv)}</span> },
     { key: "items_sold", header: "LIVE Items Sold", sortable: true, align: "right" },
     { key: "views", header: "Views", sortable: true, align: "right" },
     { key: "clicks", header: "Prod Clicks", sortable: true, align: "right" },
-    { key: "ctr", header: "CTR%", sortable: true, align: "right", render: (l) => <span className="text-emerald-500">{formatPercent(l.ctr)}</span> },
+    { key: "ctr", header: "CTR%", sortable: true, align: "right", render: (l) => <span className="text-emerald-500 font-semibold">{formatPercent(l.ctr)}</span> },
   ];
 
   return (
     <div className="space-y-8 mt-4">
       {/* Filter */}
       <div className="flex items-center gap-3">
-        <span className="text-sm font-medium text-[#8E8E95]">Filter:</span>
-        {["all", "Seller", "Affiliate"].map((f) => (
+        <span className="text-sm font-medium text-muted-foreground">Filter:</span>
+        {(["all", "Seller", "Affiliate"] as const).map((f) => (
           <button
             key={f}
-            onClick={() => setChannelFilter(f as any)}
+            onClick={() => setChannelFilter(f)}
             className={cn(
-              "px-4 py-1.5 text-xs font-semibold rounded-lg transition-all",
-              channelFilter === f ? "bg-[#11112B] text-white border border-[#3D4BFF]/50" : "bg-[#1F1F23] text-[#8E8E95] hover:text-white"
+              "px-4 py-1.5 text-xs font-bold rounded-lg transition-all border cursor-pointer",
+              channelFilter === f 
+                ? "bg-[#3D4BFF]/10 text-[#3D4BFF] border-[#3D4BFF]/30 dark:bg-[#3D4BFF]/20 dark:text-white" 
+                : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/30"
             )}
           >
             {f === "all" ? "All" : f}
@@ -255,37 +256,37 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
       </div>
 
       {/* Video Performance */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Video Performance</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Video Performance</h3>
         <DataTable columns={videoColumns} data={filteredVideos} searchFields={["creator", "title"]} searchPlaceholder="Cari video..." defaultSort={{ key: "gmv", direction: "desc" }} />
       </div>
 
       {/* Live Performance */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Live Performance</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Live Performance</h3>
         <DataTable columns={liveColumns} data={filteredLives} searchFields={["creator_name", "creator"]} searchPlaceholder="Cari host..." defaultSort={{ key: "gmv", direction: "desc" }} />
       </div>
 
       {/* Product Card */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Product Card (Toko / Showcase Pasif)</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Product Card (Toko / Showcase Pasif)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#1F1F23] text-[#8E8E95] text-xs font-bold uppercase tracking-wider">
+              <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-3">Product ID</th><th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">GMV (Rp)</th><th className="py-3 px-3 text-right">SKU Orders</th><th className="py-3 px-3 text-right">Views</th><th className="py-3 px-3 text-right">Clicks</th><th className="py-3 px-3 text-right">ATC</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1F1F23] text-zinc-300">
+            <tbody className="divide-y divide-border text-foreground">
               {dashboardData.products.filter((p) => p.tiktokGmv > 0).slice(0, 15).map((p, i) => {
                 const seed = p.name.length + i;
                 const views = (seed * 12345) % 40000 + 10000;
                 const clicks = Math.floor(views * (0.05 + (seed % 5) * 0.01));
                 const atc = Math.floor(clicks * (0.1 + (seed % 3) * 0.05));
                 return (
-                  <tr key={i} className="hover:bg-[#1C1C21]/30">
-                    <td className="py-3 px-3 text-[#8E8E95]">TIK-{String(i + 1).padStart(3, "0")}</td>
-                    <td className="py-3 px-3 font-semibold text-white max-w-xs truncate">{p.name}</td>
+                  <tr key={i} className="hover:bg-muted/20 transition-colors">
+                    <td className="py-3 px-3 text-muted-foreground">TIK-{String(i + 1).padStart(3, "0")}</td>
+                    <td className="py-3 px-3 font-semibold text-foreground max-w-xs truncate">{p.name}</td>
                     <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</td>
                     <td className="py-3 px-3 text-right">{formatNumber(p.tiktokItemsSold)}</td>
                     <td className="py-3 px-3 text-right">{formatNumber(views)}</td>
@@ -337,52 +338,52 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
   return (
     <div className="space-y-8 mt-4">
       {/* A. Creator Analyz */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Creator Analyz</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Creator Analyz</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#1F1F23] text-[#8E8E95] text-xs font-bold uppercase tracking-wider">
+              <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-3">Creator Name</th><th className="py-3 px-3 text-right">GMV</th><th className="py-3 px-3 text-right">Items Sold</th><th className="py-3 px-3 text-right">AOV</th><th className="py-3 px-3 text-right">Avg/Sold</th><th className="py-3 px-3 text-right">Videos</th><th className="py-3 px-3 text-right">LIVE</th><th className="py-3 px-3 text-right">Est. Commission</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1F1F23] text-zinc-300">
+            <tbody className="divide-y divide-border text-foreground">
               {affiliates.slice(0, 20).map((a) => (
-                <tr key={a.creator} className="hover:bg-[#1C1C21]/30">
-                  <td className="py-3 px-3 font-semibold text-white">@{a.creator}</td>
+                <tr key={a.creator} className="hover:bg-muted/20 transition-colors">
+                  <td className="py-3 px-3 font-semibold text-foreground">@{a.creator}</td>
                   <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(a.gmv)}</td>
                   <td className="py-3 px-3 text-right">{formatNumber(a.itemsSold)}</td>
                   <td className="py-3 px-3 text-right">{a.itemsSold > 0 ? formatCurrency(a.gmv / a.itemsSold) : "-"}</td>
                   <td className="py-3 px-3 text-right">{(a.itemsSold / Math.max(1, a.videos + a.lives)).toFixed(1)}</td>
                   <td className="py-3 px-3 text-right">{a.videos}</td>
                   <td className="py-3 px-3 text-right">{a.lives}</td>
-                  <td className="py-3 px-3 text-right font-bold text-violet-400">{formatCurrency(a.commission)}</td>
+                  <td className="py-3 px-3 text-right font-bold text-violet-500 dark:text-violet-400">{formatCurrency(a.commission)}</td>
                 </tr>
               ))}
-              {affiliates.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-[#8E8E95]">No affiliate data</td></tr>}
+              {affiliates.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">No affiliate data</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
       {/* B. Product Analyz */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Product Analyz (Jalur Afiliasi)</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Product Analyz (Jalur Afiliasi)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
-              <tr className="border-b border-[#1F1F23] text-[#8E8E95] text-xs font-bold uppercase tracking-wider">
+              <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
                 <th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">Orders</th><th className="py-3 px-3 text-right">Videos Post</th><th className="py-3 px-3 text-right">LIVE Streams</th><th className="py-3 px-3 text-right">Est. Commission</th><th className="py-3 px-3 text-right">Sample</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#1F1F23] text-zinc-300">
+            <tbody className="divide-y divide-border text-foreground">
               {affiliateProducts.slice(0, 15).map((p, i) => (
-                <tr key={i} className="hover:bg-[#1C1C21]/30">
-                  <td className="py-3 px-3 font-semibold text-white max-w-xs truncate">{p.name}</td>
+                <tr key={i} className="hover:bg-muted/20 transition-colors">
+                  <td className="py-3 px-3 font-semibold text-foreground max-w-xs truncate">{p.name}</td>
                   <td className="py-3 px-3 text-right">{formatNumber(p.orders)}</td>
                   <td className="py-3 px-3 text-right">{p.videos}</td>
                   <td className="py-3 px-3 text-right">{p.lives}</td>
-                  <td className="py-3 px-3 text-right font-bold text-violet-400">{formatCurrency(p.commission)}</td>
+                  <td className="py-3 px-3 text-right font-bold text-violet-500 dark:text-violet-400">{formatCurrency(p.commission)}</td>
                   <td className="py-3 px-3 text-right">{Math.floor(p.orders / 3)}</td>
                 </tr>
               ))}
@@ -392,26 +393,26 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
       </div>
 
       {/* C. Sample & Shipping */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Sample & Shipping</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Sample & Shipping</h3>
         <div className="grid gap-6 lg:grid-cols-3">
           {[
             { label: "Sample Requested ID", value: "SMP-7824" },
             { label: "Creator Name", value: "@creator_sample" },
-            { label: "Shipping Status", value: "Sent", color: "text-emerald-400" },
-            { label: "Video Link Verification Rate", value: "87.5%", color: "text-emerald-400" },
+            { label: "Shipping Status", value: "Sent", color: "text-emerald-500 dark:text-emerald-400" },
+            { label: "Video Link Verification Rate", value: "87.5%", color: "text-emerald-500 dark:text-emerald-400" },
           ].map((item) => (
             <div key={item.label} className="flex flex-col gap-1">
-              <span className="text-xs text-[#8E8E95]">{item.label}</span>
-              <span className={cn("text-sm font-semibold text-white", item.color)}>{item.value}</span>
+              <span className="text-xs text-muted-foreground">{item.label}</span>
+              <span className={cn("text-sm font-semibold text-foreground", item.color)}>{item.value}</span>
             </div>
           ))}
         </div>
       </div>
 
       {/* D. Commission */}
-      <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6">
-        <h3 className="text-lg font-bold text-white mb-4">Commission</h3>
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Commission</h3>
         <div className="grid gap-6 lg:grid-cols-4">
           {[
             { label: "Commission Plan Type", value: "Open" },
@@ -420,8 +421,8 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
             { label: "Affiliate ROI Multiplier", value: `${(totalAffiliateGMV(dashboardData) / Math.max(1, affiliates.reduce((s, a) => s + a.commission, 0))).toFixed(2)}x` },
           ].map((item) => (
             <div key={item.label} className="flex flex-col gap-1">
-              <span className="text-xs text-[#8E8E95]">{item.label}</span>
-              <span className="text-sm font-bold text-white">{item.value}</span>
+              <span className="text-xs text-muted-foreground">{item.label}</span>
+              <span className="text-sm font-bold text-foreground">{item.value}</span>
             </div>
           ))}
         </div>
