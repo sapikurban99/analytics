@@ -93,7 +93,9 @@ for file in all_files:
                 "month_name": month_name.capitalize(),
                 "shopee_overview": {},
                 "tiktok_overview": {},
+                "website_overview_utm": {},
                 "combined_overview": {},
+                "meta_ads_performance": [],
                 "daily_trends": [],
                 "products": [],
                 "lives": [],
@@ -528,11 +530,82 @@ for file in all_files:
         except Exception as e:
             print(f"Error TikTok GMV Max Product Ads {filename}: {e}")
 
+    # 12. Website Overview
+    elif "overview website" in filename:
+        try:
+            df = pd.read_csv(file)
+            if "Tanggal" in df.columns:
+                gmv_sum = 0
+                orders_sum = 0
+                daily_records = []
+                for _, row in df.iterrows():
+                    tanggal = str(row["Tanggal"]).strip()
+                    if pd.isna(row["Tanggal"]) or tanggal == '-':
+                        continue
+                    gmv = clean_number(row.get("Penjualan Bersih", row.get("Nilai Order", 0)))
+                    orders = clean_number(row.get("Jumlah Order", 0))
+                    gmv_sum += gmv
+                    orders_sum += orders
+                    
+                    # Convert '01 Jan 2026' to '2026-01-01'
+                    try:
+                        date_obj = pd.to_datetime(tanggal, format='%d %b %Y')
+                        date_norm = date_obj.strftime('%Y-%m-%d')
+                    except:
+                        date_norm = tanggal
+                        
+                    daily_records.append({
+                        "date": date_norm,
+                        "website_gmv": gmv,
+                        "website_orders": orders
+                    })
+                
+                data["months"][month_key]["website_overview_utm"] = {
+                    "gmv": gmv_sum,
+                    "orders": orders_sum,
+                    "visitors": 0,
+                    "conversion_rate": 0
+                }
+                data["months"][month_key]["_web_daily"] = daily_records
+        except Exception as e:
+            print(f"Error Website Overview {filename}: {e}")
+
+    # 13. Meta Ads
+    elif "meta cpas" in filename or "meta regular" in filename or "meta traffic" in filename or "meta website" in filename:
+        try:
+            df = pd.read_excel(file) if filename.endswith('.xlsx') else pd.read_csv(file)
+            if "Campaign name" in df.columns:
+                for _, row in df.iterrows():
+                    name = str(row["Campaign name"]).strip()
+                    if name == '-' or pd.isna(row["Campaign name"]):
+                        continue
+                    cost = clean_number(row.get("Amount spent (IDR)", 0))
+                    gmv = clean_number(row.get("Purchases conversion value for shared items only", 0))
+                    orders = clean_number(row.get("Purchases with shared items", 0))
+                    impressions = clean_number(row.get("Impressions", 0))
+                    clicks = clean_number(row.get("Link clicks", 0))
+                    
+                    if cost == 0 and gmv == 0 and impressions < 10:
+                        continue
+                        
+                    data["months"][month_key]["meta_ads_performance"].append({
+                        "campaign_name": name,
+                        "cost": cost,
+                        "gmv": gmv,
+                        "orders": orders,
+                        "impressions": impressions,
+                        "clicks": clicks,
+                        "roi": round(gmv / cost, 2) if cost > 0 else 0
+                    })
+        except Exception as e:
+            print(f"Error Meta Ads {filename}: {e}")
+
 # --- THIRD PASS: POST PROCESS AND COMBINE ---
 print("Post-processing and consolidating all metrics...")
 for month_key, month_data in data["months"].items():
     shp_daily = month_data.get("_shp_daily", [])
     tts_daily = month_data.get("_tts_daily", [])
+    web_daily = month_data.get("_web_daily", [])
     
     daily_map = {}
     for r in shp_daily:
@@ -546,6 +619,10 @@ for month_key, month_data in data["months"].items():
             "tiktok_orders": 0,
             "tiktok_visitors": 0,
             "tiktok_clicks": 0,
+            "website_gmv": 0,
+            "website_orders": 0,
+            "meta_gmv": 0,
+            "meta_orders": 0,
             "combined_gmv": r["shopee_gmv"],
             "combined_orders": r["shopee_orders"],
             "combined_visitors": r["shopee_visitors"]
@@ -558,9 +635,9 @@ for month_key, month_data in data["months"].items():
             daily_map[d]["tiktok_orders"] = r["tiktok_orders"]
             daily_map[d]["tiktok_visitors"] = r["tiktok_visitors"]
             daily_map[d]["tiktok_clicks"] = r["tiktok_clicks"]
-            daily_map[d]["combined_gmv"] = daily_map[d]["shopee_gmv"] + r["tiktok_gmv"]
-            daily_map[d]["combined_orders"] = daily_map[d]["shopee_orders"] + r["tiktok_orders"]
-            daily_map[d]["combined_visitors"] = daily_map[d]["shopee_visitors"] + r["tiktok_visitors"]
+            daily_map[d]["combined_gmv"] += r["tiktok_gmv"]
+            daily_map[d]["combined_orders"] += r["tiktok_orders"]
+            daily_map[d]["combined_visitors"] += r["tiktok_visitors"]
         else:
             daily_map[d] = {
                 "date": d,
@@ -572,9 +649,40 @@ for month_key, month_data in data["months"].items():
                 "tiktok_orders": r["tiktok_orders"],
                 "tiktok_visitors": r["tiktok_visitors"],
                 "tiktok_clicks": r["tiktok_clicks"],
+                "website_gmv": 0,
+                "website_orders": 0,
+                "meta_gmv": 0,
+                "meta_orders": 0,
                 "combined_gmv": r["tiktok_gmv"],
                 "combined_orders": r["tiktok_orders"],
                 "combined_visitors": r["tiktok_visitors"]
+            }
+            
+    for r in web_daily:
+        d = r["date"]
+        if d in daily_map:
+            daily_map[d]["website_gmv"] = r["website_gmv"]
+            daily_map[d]["website_orders"] = r["website_orders"]
+            daily_map[d]["combined_gmv"] += r["website_gmv"]
+            daily_map[d]["combined_orders"] += r["website_orders"]
+        else:
+            daily_map[d] = {
+                "date": d,
+                "shopee_gmv": 0,
+                "shopee_orders": 0,
+                "shopee_visitors": 0,
+                "shopee_clicks": 0,
+                "tiktok_gmv": 0,
+                "tiktok_orders": 0,
+                "tiktok_visitors": 0,
+                "tiktok_clicks": 0,
+                "website_gmv": r["website_gmv"],
+                "website_orders": r["website_orders"],
+                "meta_gmv": 0,
+                "meta_orders": 0,
+                "combined_gmv": r["website_gmv"],
+                "combined_orders": r["website_orders"],
+                "combined_visitors": 0
             }
             
     month_data["daily_trends"] = [v for k, v in sorted(daily_map.items())]
@@ -582,10 +690,14 @@ for month_key, month_data in data["months"].items():
     # Overview totals
     shp_o = month_data.get("shopee_overview", {})
     tts_o = month_data.get("tiktok_overview", {})
+    web_o = month_data.get("website_overview_utm", {})
+    meta_ads = month_data.get("meta_ads_performance", [])
+    meta_gmv = sum(x["gmv"] for x in meta_ads)
+    meta_orders = sum(x["orders"] for x in meta_ads)
     
-    combined_gmv = shp_o.get("gmv", 0) + tts_o.get("gmv", 0)
-    combined_orders = shp_o.get("orders", 0) + tts_o.get("orders", 0)
-    combined_visitors = shp_o.get("visitors", 0) + tts_o.get("visitors", 0)
+    combined_gmv = shp_o.get("gmv", 0) + tts_o.get("gmv", 0) + web_o.get("gmv", 0) + meta_gmv
+    combined_orders = shp_o.get("orders", 0) + tts_o.get("orders", 0) + web_o.get("orders", 0) + meta_orders
+    combined_visitors = shp_o.get("visitors", 0) + tts_o.get("visitors", 0) + web_o.get("visitors", 0)
     
     month_data["combined_overview"] = {
         "gmv": combined_gmv,
@@ -599,6 +711,8 @@ for month_key, month_data in data["months"].items():
         del month_data["_shp_daily"]
     if "_tts_daily" in month_data:
         del month_data["_tts_daily"]
+    if "_web_daily" in month_data:
+        del month_data["_web_daily"]
 
 # Compute Growth Rates month-over-month
 keys = sorted(data["months"].keys())

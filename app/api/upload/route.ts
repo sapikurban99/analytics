@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     if (platform.toLowerCase() === "shopee") platformDir = "Shopee";
     else if (platform.toLowerCase() === "tiktok") platformDir = "Tiktok";
     else if (platform.toLowerCase() === "meta") platformDir = "Meta";
+    else if (platform.toLowerCase() === "website") platformDir = "Website";
     else {
       return NextResponse.json({ error: "Invalid platform" }, { status: 400 });
     }
@@ -118,6 +119,17 @@ export async function POST(req: NextRequest) {
         expectedExt = file.name.endsWith(".csv") ? ".csv" : ".xlsx";
       } else {
         return NextResponse.json({ error: "Invalid Meta category" }, { status: 400 });
+      }
+    }
+
+    // Website Map
+    if (platformDir === "Website") {
+      if (category === "Overview Website") {
+        categoryDir = "Overview Website";
+        filenamePrefix = "overview website";
+        expectedExt = file.name.endsWith(".csv") ? ".csv" : ".xlsx";
+      } else {
+        return NextResponse.json({ error: "Invalid Website category" }, { status: 400 });
       }
     }
 

@@ -2,25 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import {
-  Lock,
-  Unlock,
-  ArrowLeft,
-  UploadCloud,
-  FileText,
-  Trash2,
-  Edit,
-  Clock,
-  Database,
-  AlertTriangle,
-  CheckCircle2,
-  RefreshCw,
-  User,
-  Eye,
-  EyeOff,
-  ExternalLink,
-  ChevronRight,
-  Sparkles,
-  Inbox
+  Lock, Unlock, UploadCloud, FileText, Trash2, Edit,
+  Clock, Database, AlertTriangle, CheckCircle2, RefreshCw,
+  User, Eye, EyeOff, ChevronRight, Inbox,
+  Code, Settings
 } from "lucide-react";
 import Link from "next/link";
 
@@ -53,6 +38,8 @@ export default function AdminPage() {
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"upload" | "database" | "history" | "edit">("database");
+  // Channel filter
+  const [activeChannel, setActiveChannel] = useState<"all" | "shopee" | "tiktok" | "meta" | "website">("all");
 
   // Edit Data States
   const [editSelectedMonth, setEditSelectedMonth] = useState<string>("");
@@ -60,12 +47,9 @@ export default function AdminPage() {
   const [editMonthRawData, setEditMonthRawData] = useState<Record<string, any> | null>(null);
   const [isFetchingEditData, setIsFetchingEditData] = useState(false);
   const [editFetchError, setEditFetchError] = useState<string | null>(null);
-  // Structured form state for overview sections
   const [structuredForm, setStructuredForm] = useState<Record<string, any>>({});
-  // Raw JSON editor state
   const [rawJsonText, setRawJsonText] = useState<string>("");
   const [rawJsonError, setRawJsonError] = useState<string | null>(null);
-  // Save feedback
   const [isSavingSection, setIsSavingSection] = useState(false);
   const [saveSectionSuccess, setSaveSectionSuccess] = useState<string | null>(null);
   const [saveSectionError, setSaveSectionError] = useState<string | null>(null);
@@ -74,7 +58,7 @@ export default function AdminPage() {
   const [months, setMonths] = useState<MonthItem[]>([]);
   const [isFetchingMonths, setIsFetchingMonths] = useState(false);
   const [monthError, setMonthError] = useState<string | null>(null);
-  
+
   // Edit Modal States
   const [editingMonth, setEditingMonth] = useState<MonthItem | null>(null);
   const [editName, setEditName] = useState("");
@@ -118,7 +102,7 @@ export default function AdminPage() {
       const res = await fetch("/api/admin/metrics");
       if (!res.ok) throw new Error("Gagal mengambil data bulan dari database.");
       const data = await res.json();
-      
+
       if (data && data.months) {
         const parsedMonths = Object.keys(data.months)
           .sort((a, b) => b.localeCompare(a))
@@ -214,6 +198,10 @@ export default function AdminPage() {
           { key: "CPAS", label: "Meta CPAS (.xlsx/.csv)" },
           { key: "Meta Regular", label: "Meta Regular (.xlsx/.csv)" },
         ];
+      case "Website":
+        return [
+          { key: "Overview Website", label: "Website Overview UTM (.csv/.xlsx)" },
+        ];
       default:
         return [];
     }
@@ -255,7 +243,6 @@ export default function AdminPage() {
           `Dokumen ${uploadPlatform} - ${uploadCategory} (${uploadMonth} ${uploadYear}) berhasil diunggah & dikonsolidasikan!`
         );
         setUploadFile(null);
-        // Refresh months & history list
         fetchMonths();
         fetchHistory();
       } else {
@@ -340,7 +327,6 @@ export default function AdminPage() {
       if (data?.months?.[monthKey]) {
         const monthData = data.months[monthKey];
         setEditMonthRawData(monthData);
-        // Auto-load the currently selected section
         const sectionData = monthData[editSelectedSection];
         if (sectionData !== undefined) {
           if (STRUCTURED_SECTIONS_LIST.includes(editSelectedSection)) {
@@ -370,6 +356,24 @@ export default function AdminPage() {
     "website_overview_utm", "meta_ads_performance",
   ];
   const ALL_SECTIONS_LIST = [...STRUCTURED_SECTIONS_LIST, ...RAW_SECTIONS_LIST];
+
+  const CHANNEL_SECTION_MAP: Record<string, string[]> = {
+    all: ALL_SECTIONS_LIST,
+    shopee: ["shopee_overview", "shopee_channel_revenue_streams", "shopee_affiliate_kol", "combined_overview", "ads", "daily_trends", "products", "products_consolidated"],
+    tiktok: ["tiktok_overview", "tiktok_channel_video", "tiktok_channel_live", "tiktok_channel_product_card", "tiktok_affiliate_creator", "tiktok_affiliate_product", "tiktok_affiliate_sample", "tiktok_affiliate_commission", "combined_overview", "ads", "daily_trends", "products", "products_consolidated", "lives", "videos"],
+    meta: ["meta_ads_performance", "combined_overview", "daily_trends"],
+    website: ["website_overview_utm", "combined_overview", "daily_trends"],
+  };
+
+  const getSectionsForChannel = (channel: string) => CHANNEL_SECTION_MAP[channel] || ALL_SECTIONS_LIST;
+
+  const getFilteredSectionGroups = (channel: string) => {
+    const allowed = getSectionsForChannel(channel);
+    return SECTION_GROUPS.map(group => ({
+      ...group,
+      sections: group.sections.filter(s => allowed.includes(s)),
+    })).filter(g => g.sections.length > 0);
+  };
 
   const SECTION_GROUP_LABELS: Record<string, string> = {
     "shopee_overview": "📊 Shopee Overview",
@@ -404,6 +408,16 @@ export default function AdminPage() {
   ];
 
   const isStructuredSection = (key: string) => STRUCTURED_SECTIONS_LIST.includes(key);
+
+  // Reset section when channel changes
+  useEffect(() => {
+    const allowed = getSectionsForChannel(activeChannel);
+    if (!allowed.includes(editSelectedSection)) {
+      const firstSection = allowed[0] || "combined_overview";
+      handleSectionChange(firstSection);
+      setEditSelectedSection(firstSection);
+    }
+  }, [activeChannel]);
 
   const flattenForForm = (obj: Record<string, any>, prefix = ""): Record<string, any> => {
     const result: Record<string, any> = {};
@@ -500,125 +514,148 @@ export default function AdminPage() {
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#0B0B0C] text-[#F4F4F6]">
-      {/* Decorative Glow */}
-      <div className="pointer-events-none absolute left-[20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[#3D4BFF]/5 blur-[120px]" />
-      <div className="pointer-events-none absolute right-[10%] top-[20%] h-[400px] w-[400px] rounded-full bg-cyan-500/5 blur-[100px]" />
+    <div className="flex h-screen w-screen bg-[#060608] text-[#F4F4F6] font-sans overflow-hidden">
 
-      <div className="flex flex-1 flex-col overflow-y-auto relative custom-scrollbar">
-        {/* Top Bar */}
-        <header className="flex items-center justify-between px-8 py-4 border-b border-[#1F1F23]/80 bg-[#0B0B0C]/80 backdrop-blur-md shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.7)] animate-pulse" />
-            <span className="text-base font-bold tracking-tight text-white">Admin Portal</span>
+      {/* AUTHENTICATION SCREEN */}
+      {!isAuthenticated ? (
+        <div className="flex-1 flex items-center justify-center p-6 relative">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
+
+          <div className="max-w-sm w-full z-10 relative">
+            <div className="mb-8 text-center">
+              <div className="mx-auto w-14 h-14 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mb-4 shadow-[0_0_40px_rgba(6,182,212,0.3)]">
+                <Settings className="w-7 h-7 text-white" />
+              </div>
+              <h1 className="text-2xl font-bold text-white tracking-tight">BI Control Panel</h1>
+              <p className="text-[#8E8E95] text-sm mt-1">Sistem manajemen data analitik terpusat</p>
+            </div>
+
+            <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-3xl p-8 shadow-2xl backdrop-blur-xl">
+              <form onSubmit={handleLogin} className="space-y-5">
+                {authError && (
+                  <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {authError}
+                  </div>
+                )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[#8E8E95] uppercase tracking-wider ml-1">Username</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E95]" />
+                    <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
+                      className="w-full bg-[#131316] border border-[#1F1F23] rounded-xl py-3 pl-11 pr-4 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors" />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-[#8E8E95] uppercase tracking-wider ml-1">Password</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E8E95]" />
+                    <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)}
+                      className="w-full bg-[#131316] border border-[#1F1F23] rounded-xl py-3 pl-11 pr-10 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#8E8E95]">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+                <button type="submit" disabled={isLoggingIn}
+                  className="w-full bg-white hover:bg-gray-100 text-black font-bold rounded-xl py-3 text-sm flex items-center justify-center gap-2 transition-colors mt-2">
+                  {isLoggingIn ? <><RefreshCw className="w-4 h-4 animate-spin" />Verifikasi...</> : "Akses Dashboard"}
+                </button>
+              </form>
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-2 rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-2 text-xs font-semibold text-[#8E8E95] hover:text-white hover:border-zinc-700 transition-all"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Dashboard
-            </Link>
-            {isAuthenticated && (
-              <button
-                onClick={handleLogout}
-                className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-xs font-semibold text-rose-400 hover:bg-rose-500/20 hover:text-white transition-all"
-              >
+        </div>
+      ) : (
+
+        /* MAIN ADMIN DASHBOARD */
+        <div className="flex w-full h-full">
+
+          {/* SIDEBAR NAVIGATION */}
+          <aside className="w-64 border-r border-[#1F1F23] bg-[#0B0B0C] flex flex-col shrink-0">
+            <div className="h-16 flex items-center px-6 border-b border-[#1F1F23]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center">
+                  <Settings className="w-4 h-4 text-white" />
+                </div>
+                <span className="font-bold text-sm tracking-wide text-white">Data Control</span>
+              </div>
+            </div>
+
+            {/* Channel Selector */}
+            <div className="px-4 py-3 border-b border-[#1F1F23]">
+              <label className="text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider block mb-2">Channel Filter</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {(["all","shopee","tiktok","meta","website"] as const).map((ch) => (
+                  <button key={ch} onClick={() => { setActiveChannel(ch); if (activeTab === "edit") setEditSelectedMonth(""); }}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all uppercase ${
+                      activeChannel === ch
+                        ? ch === "all" ? "bg-white/10 text-white border border-white/20"
+                          : ch === "shopee" ? "bg-[#EE4D2D]/20 text-[#EE4D2D] border border-[#EE4D2D]/30"
+                          : ch === "tiktok" ? "bg-white/10 text-white border border-white/20"
+                          : ch === "meta" ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                          : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                        : "text-[#8E8E95] hover:text-white border border-transparent"
+                    }`}>
+                    {ch === "all" ? "All" : ch.charAt(0).toUpperCase() + ch.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+              <div className="text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider mb-2 mt-4 ml-2">Manajemen Utama</div>
+              <button onClick={() => setActiveTab("database")}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "database" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
+                <Database className="w-4 h-4" /> Kelola Database
+              </button>
+              <button onClick={() => setActiveTab("upload")}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "upload" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
+                <UploadCloud className="w-4 h-4" /> Upload Dokumen
+              </button>
+              <button onClick={() => setActiveTab("history")}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "history" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
+                <Clock className="w-4 h-4" /> Riwayat Upload
+              </button>
+
+              <div className="text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider mb-2 mt-8 ml-2">Advanced Setting</div>
+              <button onClick={() => setActiveTab("edit")}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "edit" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
+                <Code className="w-4 h-4" /> Editor JSON
+              </button>
+            </nav>
+
+            <div className="p-4 border-t border-[#1F1F23]">
+              <Link href="/" className="w-full flex items-center justify-between px-3 py-2 text-sm text-[#8E8E95] hover:text-white transition-colors">
+                <span className="flex items-center gap-2"><ChevronRight className="w-4 h-4" /> View Dashboard</span>
+              </Link>
+              <button onClick={handleLogout} className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 rounded-xl transition-colors">
                 Keluar
               </button>
-            )}
-          </div>
-        </header>
-
-        <main className="flex-1 p-8 space-y-8 z-10">
-          {/* Auth Screen */}
-          {!isAuthenticated ? (
-            <div className="max-w-md w-full mx-auto mt-12 space-y-6">
-              <div className="text-center space-y-2">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-500/30 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.15)] mb-3">
-                  <Lock className="h-6 w-6 text-cyan-400" />
-                </div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">Protected Area</h1>
-                <p className="text-sm text-[#8E8E95]">Masukkan kredensial admin</p>
-              </div>
-
-              <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-8 shadow-sm">
-                <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-500 via-[#3D4BFF] to-pink-500" />
-                <form onSubmit={handleLogin} className="space-y-5 relative">
-                  {authError && (
-                    <div className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-medium text-rose-400">
-                      <AlertTriangle className="h-4 w-4 shrink-0" />
-                      <span>{authError}</span>
-                    </div>
-                  )}
-                  <div className="space-y-2 text-left">
-                    <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Username</label>
-                    <div className="relative">
-                      <User className="absolute left-4 top-3.5 h-4 w-4 text-[#8E8E95]" />
-                      <input type="text" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Masukkan username"
-                        className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] pl-11 pr-4 py-3 text-sm text-white outline-none focus:border-[#3D4BFF]/50 focus:ring-1 focus:ring-[#3D4BFF]/50" required />
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-left">
-                    <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Password</label>
-                    <div className="relative">
-                      <Lock className="absolute left-4 top-3.5 h-4 w-4 text-[#8E8E95]" />
-                      <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Masukkan password"
-                        className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] pl-11 pr-11 py-3 text-sm text-white outline-none focus:border-[#3D4BFF]/50 focus:ring-1 focus:ring-[#3D4BFF]/50" required />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-3.5 text-[#8E8E95] hover:text-white">
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <button type="submit" disabled={isLoggingIn}
-                    className="w-full rounded-xl bg-gradient-to-r from-cyan-500 via-[#3D4BFF] to-pink-500 p-[1.5px] shadow-[0_0_30px_rgba(61,75,255,0.2)] hover:shadow-[0_0_35px_rgba(61,75,255,0.3)] transition-all font-semibold">
-                    <div className="w-full bg-[#131316] rounded-[10px] py-3 text-sm text-white flex items-center justify-center gap-2 hover:bg-[#131316]/50 transition-colors">
-                      {isLoggingIn ? <><RefreshCw className="h-4 w-4 animate-spin" />Verifikasi...</> : <><Unlock className="h-4 w-4 text-cyan-400" />Masuk Area Admin</>}
-                    </div>
-                  </button>
-                </form>
-              </div>
             </div>
-          ) : (
-          
-          /* Admin Area Dashboard */
-          <div className="space-y-8">
-            
-            {/* Header + Tab Selector */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white">Setup & Setting Data</h1>
-                <p className="text-sm text-[#8E8E95] mt-1">Kelola database bulanan, upload dokumen, dan edit data</p>
+          </aside>
+
+          {/* MAIN CONTENT AREA */}
+          <main className="flex-1 bg-[#060608] flex flex-col relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/5 rounded-full blur-[100px] pointer-events-none" />
+
+            <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+
+              {/* DYNAMIC HEADER */}
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-white tracking-tight">
+                  {activeTab === "database" && "Kelola Database Bulanan"}
+                  {activeTab === "upload" && "Upload & Integrasi Data"}
+                  {activeTab === "history" && "Log Riwayat Upload"}
+                  {activeTab === "edit" && "Editor Konfigurasi JSON"}
+                </h2>
+                <p className="text-[#8E8E95] mt-1 text-sm">
+                  {activeTab === "database" && "Manajemen record bulan yang tersimpan di sistem Supabase."}
+                  {activeTab === "edit" && "Modifikasi langsung payload JSON untuk kalibrasi metrik dashboard."}
+                </p>
               </div>
 
-              {/* Tab Selector - pill style like dashboard period filter */}
-              <div className="flex items-center rounded-full border border-[#1F1F23] bg-[#131316] p-1 shrink-0 self-start md:self-auto">
-                <button onClick={() => setActiveTab("database")}
-                  className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${activeTab === "database" ? "bg-[#11112B] text-white border border-[#3D4BFF]/50 shadow-[0_0_15px_rgba(61,75,255,0.2)]" : "text-[#8E8E95] hover:text-white"}`}>
-                  <Database className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />Kelola Database
-                </button>
-                <button onClick={() => setActiveTab("edit")}
-                  className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${activeTab === "edit" ? "bg-[#11112B] text-white border border-[#3D4BFF]/50 shadow-[0_0_15px_rgba(61,75,255,0.2)]" : "text-[#8E8E95] hover:text-white"}`}>
-                  <Edit className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />Edit Data
-                </button>
-                <button onClick={() => setActiveTab("upload")}
-                  className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${activeTab === "upload" ? "bg-[#11112B] text-white border border-[#3D4BFF]/50 shadow-[0_0_15px_rgba(61,75,255,0.2)]" : "text-[#8E8E95] hover:text-white"}`}>
-                  <UploadCloud className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />Upload Data
-                </button>
-                <button onClick={() => setActiveTab("history")}
-                  className={`rounded-full px-4 py-1.5 text-xs font-semibold transition-all ${activeTab === "history" ? "bg-[#11112B] text-white border border-[#3D4BFF]/50 shadow-[0_0_15px_rgba(61,75,255,0.2)]" : "text-[#8E8E95] hover:text-white"}`}>
-                  <Clock className="inline h-3.5 w-3.5 mr-1.5 -mt-0.5" />Riwayat
-                </button>
-              </div>
-            </div>
-
-            {/* TAB CONTENT */}
-            <div className="space-y-6">
-              
-              {/* TAB: KELOLA DATABASE */}
+              {/* ========== TAB: DATABASE ========== */}
               {activeTab === "database" && (
-                <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
+                <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-6 shadow-sm">
                   <div className="mb-6 flex justify-between items-center">
                     <div>
                       <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -628,7 +665,7 @@ export default function AdminPage() {
                       <p className="text-sm text-[#8E8E95] mt-1">Daftar bulan yang tersimpan di database</p>
                     </div>
                     <button onClick={fetchMonths} disabled={isFetchingMonths}
-                      className="p-2 text-[#8E8E95] hover:text-white rounded-xl bg-[#0B0B0C] border border-[#1F1F23] transition-colors" title="Refresh">
+                      className="p-2 text-[#8E8E95] hover:text-white rounded-xl bg-[#131316] border border-[#1F1F23] transition-colors" title="Refresh">
                       <RefreshCw className={`h-4 w-4 ${isFetchingMonths ? "animate-spin text-cyan-400" : ""}`} />
                     </button>
                   </div>
@@ -645,7 +682,7 @@ export default function AdminPage() {
                       <p className="text-sm text-[#8E8E95]">Memuat data...</p>
                     </div>
                   ) : months.length === 0 ? (
-                    <div className="py-16 flex flex-col items-center text-center space-y-4 rounded-xl border border-dashed border-[#1F1F23] bg-[#0B0B0C]/40 p-8">
+                    <div className="py-16 flex flex-col items-center text-center space-y-4 rounded-xl border border-dashed border-[#1F1F23] bg-[#131316]/40 p-8">
                       <Database className="h-10 w-10 text-[#8E8E95]" />
                       <h3 className="text-sm font-bold text-white">Database Kosong</h3>
                       <p className="text-xs text-[#8E8E95] max-w-sm">Belum ada data. Upload dokumen via tab Upload Data.</p>
@@ -657,31 +694,26 @@ export default function AdminPage() {
                           <tr className="border-b border-[#1F1F23]">
                             <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Month Key</th>
                             <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Nama Bulan</th>
-                            <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Tahun</th>
-                            <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider text-right">Aksi</th>
+                            <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Aksi</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-[#1F1F23]">
-                          {months.map((m) => {
-                            const [year] = m.key.split("-");
-                            return (
-                              <tr key={m.key} className="hover:bg-[#1C1C21]/30 transition-colors">
-                                <td className="py-4 px-4 text-sm font-mono text-cyan-400">{m.key}</td>
-                                <td className="py-4 px-4 text-sm font-bold text-white">{m.name}</td>
-                                <td className="py-4 px-4 text-sm text-[#8E8E95]">{year}</td>
-                                <td className="py-4 px-4 text-sm text-right space-x-2">
-                                  <button onClick={() => { setEditingMonth(m); setEditName(m.name); setEditError(null); }}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] bg-[#0B0B0C] px-3 py-1.5 text-xs text-[#8E8E95] hover:text-white transition-colors">
-                                    <Edit className="h-3 w-3" />Ubah Nama
-                                  </button>
-                                  <button onClick={() => { setDeletingMonth(m); setDeleteError(null); }}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/20 hover:text-white transition-colors">
-                                    <Trash2 className="h-3 w-3" />Hapus
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
+                          {months.map((m) => (
+                            <tr key={m.key} className="hover:bg-[#131316]/40 transition-colors">
+                              <td className="py-4 px-4 text-sm font-mono text-cyan-400">{m.key}</td>
+                              <td className="py-4 px-4 text-sm font-bold text-white">{m.name}</td>
+                              <td className="py-4 px-4 text-sm space-x-2">
+                                <button onClick={() => { setEditingMonth(m); setEditName(m.name); setEditError(null); }}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] bg-[#131316] px-3 py-1.5 text-xs text-[#8E8E95] hover:text-white transition-colors">
+                                  <Edit className="h-3 w-3" />Ubah Nama
+                                </button>
+                                <button onClick={() => { setDeletingMonth(m); setDeleteError(null); }}
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/20 transition-colors">
+                                  <Trash2 className="h-3 w-3" />Hapus
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
                         </tbody>
                       </table>
                     </div>
@@ -689,9 +721,9 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* TAB: UPLOAD DATA */}
+              {/* ========== TAB: UPLOAD ========== */}
               {activeTab === "upload" && (
-                <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
+                <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-6 shadow-sm">
                   <div className="mb-6">
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
                       <UploadCloud className="h-5 w-5 text-cyan-400" />
@@ -701,21 +733,21 @@ export default function AdminPage() {
                   </div>
 
                   <div className="grid gap-6 md:grid-cols-2">
-                    {/* Left: Config */}
                     <div className="space-y-4">
                       <div>
                         <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Platform</label>
                         <select value={uploadPlatform} onChange={(e) => handlePlatformChange(e.target.value)}
-                          className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white outline-none focus:border-[#3D4BFF]/50 focus:ring-1 focus:ring-[#3D4BFF]/50">
+                          className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
                           <option value="Shopee">Shopee</option>
                           <option value="TikTok">TikTok Shop</option>
                           <option value="Meta">Meta Ads</option>
+                          <option value="Website">Website</option>
                         </select>
                       </div>
                       <div>
                         <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Jenis Dokumen</label>
                         <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)}
-                          className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white outline-none focus:border-[#3D4BFF]/50 focus:ring-1 focus:ring-[#3D4BFF]/50">
+                          className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
                           {getCategoriesForPlatform(uploadPlatform).map((cat) => (
                             <option key={cat.key} value={cat.key}>{cat.label}</option>
                           ))}
@@ -725,7 +757,7 @@ export default function AdminPage() {
                         <div>
                           <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Bulan</label>
                           <select value={uploadMonth} onChange={(e) => setUploadMonth(e.target.value)}
-                            className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white outline-none focus:border-[#3D4BFF]/50 focus:ring-1 focus:ring-[#3D4BFF]/50">
+                            className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
                             {["januari","februari","maret","april","mei","juni","juli","agustus","september","oktober","november","desember"].map((m) => (
                               <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
                             ))}
@@ -734,28 +766,27 @@ export default function AdminPage() {
                         <div>
                           <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Tahun</label>
                           <select value={uploadYear} onChange={(e) => setUploadYear(e.target.value)}
-                            className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white outline-none focus:border-[#3D4BFF]/50 focus:ring-1 focus:ring-[#3D4BFF]/50">
+                            className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
                             <option value="2026">2026</option>
                           </select>
                         </div>
                       </div>
                     </div>
 
-                    {/* Right: File Area */}
                     <div className="flex flex-col justify-between">
                       <div>
                         <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">File Laporan</label>
                         {!uploadFile ? (
                           <div onClick={() => document.getElementById("file-input")?.click()}
-                            className="border-2 border-dashed border-[#1F1F23] hover:border-[#3D4BFF]/30 hover:bg-[#3D4BFF]/5 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all h-[190px]">
-                            <UploadCloud className="h-10 w-10 text-[#8E8E95] group-hover:text-white mb-3" />
+                            className="border-2 border-dashed border-[#1F1F23] hover:border-cyan-500/30 hover:bg-cyan-500/5 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all h-[190px]">
+                            <UploadCloud className="h-10 w-10 text-[#8E8E95] mb-3" />
                             <p className="text-sm font-semibold text-white">Pilih file excel/csv</p>
                             <p className="text-xs text-[#8E8E95] mt-1">{uploadCategory === "Shp Ads" ? ".csv" : ".xlsx"}</p>
                             <input id="file-input" type="file" className="hidden" accept={uploadCategory === "Shp Ads" ? ".csv" : ".xlsx"}
                               onChange={(e) => { if (e.target.files?.[0]) { setUploadFile(e.target.files[0]); setUploadError(null); } }} />
                           </div>
                         ) : (
-                          <div className="border border-[#1F1F23] bg-[#0B0B0C] rounded-2xl p-4 flex items-center justify-between h-[190px]">
+                          <div className="border border-[#1F1F23] bg-[#131316] rounded-2xl p-4 flex items-center justify-between h-[190px]">
                             <div className="flex items-center gap-3">
                               <div className="p-3 bg-cyan-500/10 rounded-xl"><FileText className="h-8 w-8 text-cyan-400" /></div>
                               <div className="text-left">
@@ -773,7 +804,7 @@ export default function AdminPage() {
                   {uploadFile && (
                     <div className="mt-6 flex justify-end">
                       <button onClick={handleUploadSubmit} disabled={isUploading}
-                        className="rounded-xl bg-gradient-to-r from-cyan-500 via-[#3D4BFF] to-pink-500 px-6 py-3 text-sm font-bold text-white shadow-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2">
+                        className="rounded-xl bg-cyan-500 hover:bg-cyan-400 px-6 py-3 text-sm font-bold text-black shadow-lg transition-colors disabled:opacity-50 flex items-center gap-2">
                         {isUploading ? <><RefreshCw className="h-4 w-4 animate-spin" />Memproses...</> : <><UploadCloud className="h-4 w-4" />Upload & Sinkronisasi</>}
                       </button>
                     </div>
@@ -788,17 +819,16 @@ export default function AdminPage() {
                     {uploadError && (
                       <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm font-medium text-rose-400">
                         <div className="flex items-start gap-3"><AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" /><span>{uploadError}</span></div>
-                        {uploadErrorDetails && <div className="mt-2 ml-8 text-xs text-rose-300 font-mono bg-[#0B0B0C]/40 p-3 rounded-xl">{uploadErrorDetails}</div>}
+                        {uploadErrorDetails && <div className="mt-2 ml-8 text-xs text-rose-300 font-mono bg-[#131316]/40 p-3 rounded-xl">{uploadErrorDetails}</div>}
                       </div>
                     )}
                   </div>
                 </div>
               )}
 
-              {/* TAB 3: RIWAYAT UPLOAD */}
-              {/* TAB: HISTORY */}
+              {/* ========== TAB: HISTORY ========== */}
               {activeTab === "history" && (
-                <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
+                <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-6 shadow-sm">
                   <div className="mb-6 flex justify-between items-center">
                     <div>
                       <h2 className="text-lg font-bold text-white flex items-center gap-2">
@@ -808,15 +838,14 @@ export default function AdminPage() {
                       <p className="text-sm text-[#8E8E95] mt-1">Daftar semua dokumen yang pernah diupload beserta statusnya</p>
                     </div>
                     <button onClick={fetchHistory} disabled={isFetchingHistory}
-                      className="p-2 text-[#8E8E95] hover:text-white rounded-xl bg-[#0B0B0C] border border-[#1F1F23] transition-colors">
+                      className="p-2 text-[#8E8E95] hover:text-white rounded-xl bg-[#131316] border border-[#1F1F23] transition-colors">
                       <RefreshCw className={`h-4 w-4 ${isFetchingHistory ? "animate-spin text-cyan-400" : ""}`} />
                     </button>
                   </div>
 
                   {historyError && (
                     <div className="mb-6 flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm font-medium text-rose-400">
-                      <AlertTriangle className="h-4 w-4 shrink-0" />
-                      <span>{historyError}</span>
+                      <AlertTriangle className="h-4 w-4 shrink-0" /><span>{historyError}</span>
                     </div>
                   )}
 
@@ -826,7 +855,7 @@ export default function AdminPage() {
                       <p className="text-sm text-[#8E8E95] mt-3">Memuat riwayat...</p>
                     </div>
                   ) : historyList.length === 0 ? (
-                    <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-dashed border-[#1F1F23] bg-[#0B0B0C]/40 p-8">
+                    <div className="py-16 flex flex-col items-center justify-center text-center rounded-2xl border border-dashed border-[#1F1F23] bg-[#131316]/40 p-8">
                       <Inbox className="h-12 w-12 text-[#8E8E95] mb-4" />
                       <p className="text-sm font-semibold text-white">Belum ada riwayat upload</p>
                       <p className="text-xs text-[#8E8E95] mt-1">Upload dokumen pertama melalui tab Upload Data</p>
@@ -847,22 +876,16 @@ export default function AdminPage() {
                         </thead>
                         <tbody className="divide-y divide-[#1F1F23]">
                           {historyList.map((log) => (
-                            <tr key={log.id} className="text-white hover:bg-[#0B0B0C]/30 transition-colors">
+                            <tr key={log.id} className="text-white hover:bg-[#131316]/40 transition-colors">
                               <td className="py-3.5 pr-4 text-sm text-[#8E8E95]">
-                                {new Date(log.timestamp).toLocaleString("id-ID", {
-                                  day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
-                                })}
+                                {new Date(log.timestamp).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
                               </td>
                               <td className="py-3.5 pr-4">
                                 <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-bold ${
-                                  log.platform === "Shopee"
-                                    ? "bg-[#EE4D2D]/10 text-[#EE4D2D]"
-                                    : log.platform === "TikTok"
-                                    ? "bg-white/10 text-white"
-                                    : "bg-cyan-500/10 text-cyan-400"
-                                }`}>
-                                  {log.platform}
-                                </span>
+                                  log.platform === "Shopee" ? "bg-[#EE4D2D]/10 text-[#EE4D2D]"
+                                  : log.platform === "TikTok" ? "bg-white/10 text-white"
+                                  : "bg-cyan-500/10 text-cyan-400"
+                                }`}>{log.platform}</span>
                               </td>
                               <td className="py-3.5 pr-4 text-sm text-[#8E8E95]">{log.category}</td>
                               <td className="py-3.5 pr-4 text-sm text-[#8E8E95]">{log.month} {log.year}</td>
@@ -872,19 +895,13 @@ export default function AdminPage() {
                                   {log.filename}
                                 </span>
                               </td>
-                              <td className="py-3.5 pr-4 text-sm text-[#8E8E95]">
-                                {(log.sizeBytes / 1024).toFixed(1)} KB
-                              </td>
+                              <td className="py-3.5 pr-4 text-sm text-[#8E8E95]">{(log.sizeBytes / 1024).toFixed(1)} KB</td>
                               <td className="py-3.5">
                                 <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                                  log.status === "Berhasil"
-                                    ? "bg-emerald-500/10 text-emerald-400"
-                                    : "bg-rose-500/10 text-rose-400"
-                                }`}>
-                                  {log.status}
-                                </span>
+                                  log.status === "Berhasil" ? "bg-emerald-500/10 text-emerald-400" : "bg-rose-500/10 text-rose-400"
+                                }`}>{log.status}</span>
                                 {log.errorMessage && (
-                                  <p className="text-[10px] text-rose-400 mt-1 font-mono max-w-[160px] truncate bg-[#0B0B0C]/60 p-1 rounded" title={log.errorMessage}>
+                                  <p className="text-[10px] text-rose-400 mt-1 font-mono max-w-[160px] truncate bg-[#131316]/60 p-1 rounded" title={log.errorMessage}>
                                     {log.errorMessage}
                                   </p>
                                 )}
@@ -898,80 +915,57 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* TAB 4: EDIT DATA JSON */}
+              {/* ========== TAB: EDIT JSON ========== */}
               {activeTab === "edit" && (
-                <div className="space-y-6">
-                  {/* Month selector */}
-                  <div className="rounded-3xl border border-[#1F1F23] bg-[#131316]/60 p-6 shadow-xl backdrop-blur-md">
-                    <h2 className="text-lg font-bold text-white flex items-center gap-2 mb-4">
-                      <Edit className="h-5 w-5 text-cyan-400" />
-                      Edit Data JSON Bulan
-                    </h2>
-                    <p className="text-xs text-[#8E8E95] mb-5">
-                      Pilih bulan dan section yang ingin diedit. Section overview menggunakan form terstruktur; section lain menggunakan raw JSON editor.
-                    </p>
+                <div className="space-y-6 max-w-6xl">
 
-                    <div className="flex flex-col sm:flex-row gap-4 items-end">
-                      <div className="flex-1">
-                        <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Bulan</label>
-                        <select
-                          value={editSelectedMonth}
-                          onChange={(e) => setEditSelectedMonth(e.target.value)}
-                          className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50 transition-colors"
-                        >
-                          <option value="">-- Pilih Bulan --</option>
-                          {months.map((m) => (
-                            <option key={m.key} value={m.key}>{m.name} ({m.key})</option>
-                          ))}
-                        </select>
-                      </div>
-                      <button
-                        onClick={() => editSelectedMonth && fetchMonthData(editSelectedMonth)}
-                        disabled={!editSelectedMonth || isFetchingEditData}
-                        className="rounded-xl bg-cyan-500 px-5 py-3 text-xs font-bold text-black hover:bg-cyan-400 disabled:opacity-50 flex items-center gap-2 shrink-0"
-                      >
-                        {isFetchingEditData ? (
-                          <><RefreshCw className="h-4 w-4 animate-spin" />Memuat...</>
-                        ) : (
-                          <><Database className="h-4 w-4" />Load Data</>  
-                        )}
-                      </button>
+                  {/* Month Selector Bar */}
+                  <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-5 flex flex-col sm:flex-row items-end gap-4 shadow-sm">
+                    <div className="flex-1 w-full">
+                      <label className="text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2 block">Target Bulan</label>
+                      <select value={editSelectedMonth} onChange={(e) => setEditSelectedMonth(e.target.value)}
+                        className="w-full bg-[#131316] border border-[#1F1F23] rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors appearance-none cursor-pointer">
+                        <option value="">-- Pilih Dataset --</option>
+                        {months.map((m) => (
+                          <option key={m.key} value={m.key}>{m.name} ({m.key})</option>
+                        ))}
+                      </select>
                     </div>
-
-                    {editFetchError && (
-                      <div className="mt-4 flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-medium text-rose-400">
-                        <AlertTriangle className="h-4 w-4 shrink-0" />
-                        <span>{editFetchError}</span>
-                      </div>
-                    )}
+                    <button onClick={() => editSelectedMonth && fetchMonthData(editSelectedMonth)} disabled={!editSelectedMonth || isFetchingEditData}
+                      className="bg-cyan-500 hover:bg-cyan-400 text-black px-6 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 flex items-center gap-2 shrink-0">
+                      {isFetchingEditData ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+                      {isFetchingEditData ? "Memuat..." : "Load Data"}
+                    </button>
                   </div>
 
-                  {/* Editor Area — only shown after data is loaded */}
+                  {editFetchError && (
+                    <div className="flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm font-medium text-rose-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0" /><span>{editFetchError}</span>
+                    </div>
+                  )}
+
+                  {/* Editor Workspace */}
                   {editMonthRawData && (
-                    <div className="rounded-3xl border border-[#1F1F23] bg-[#131316]/60 shadow-xl backdrop-blur-md overflow-hidden">
-                      {/* Section Selector Tabs */}
-                      <div className="border-b border-[#1F1F23] p-4 bg-[#0B0B0C]/40">
-                        <span className="text-xs font-bold text-[#8E8E95] mr-2 uppercase tracking-wider block mb-3">Section:</span>
-                        {SECTION_GROUPS.map((group) => {
+                    <div className="flex flex-col lg:flex-row gap-6 items-start">
+
+                      {/* Section Selector Sidebar */}
+                      <div className="w-full lg:w-64 shrink-0 space-y-6">
+                        {getFilteredSectionGroups(activeChannel).map((group) => {
                           const visibleSections = group.sections.filter(s => editMonthRawData[s] !== undefined);
                           if (visibleSections.length === 0) return null;
                           return (
-                            <div key={group.label} className="mb-2">
-                              <span className="text-[10px] font-semibold text-[#8E8E95] uppercase tracking-wider block mb-1.5 ml-1">{group.label}</span>
-                              <div className="flex items-center gap-2 flex-wrap">
+                            <div key={group.label}>
+                              <h4 className="text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider mb-2 px-1">{group.label}</h4>
+                              <div className="space-y-1">
                                 {visibleSections.map((section) => (
-                                  <button
-                                    key={section}
-                                    onClick={() => handleSectionChange(section)}
-                                    className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                                  <button key={section} onClick={() => handleSectionChange(section)}
+                                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                                       editSelectedSection === section
-                                        ? isStructuredSection(section)
-                                          ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                                          : "bg-violet-500/20 text-violet-400 border border-violet-500/30"
-                                        : "bg-[#131316] text-[#8E8E95] border border-[#1F1F23] hover:text-white"
-                                    }`}
-                                  >
-                                    {SECTION_GROUP_LABELS[section] || section}
+                                        ? "bg-[#1F1F23] text-white border border-[#27272A]"
+                                        : "text-[#8E8E95] hover:bg-[#131316] hover:text-white border border-transparent"
+                                    }`}>
+                                    {isStructuredSection(section) ? <Edit className="w-3 h-3 inline mr-1.5 text-cyan-400" /> : <Code className="w-3 h-3 inline mr-1.5 text-orange-400" />}
+                                    {section.replace(/_/g, " ")}
                                   </button>
                                 ))}
                               </div>
@@ -980,116 +974,85 @@ export default function AdminPage() {
                         })}
                       </div>
 
-                      {/* Editor Content */}
-                      <div className="p-6">
-                        <div className="flex items-center justify-between mb-5">
-                          <div>
-                            <h3 className="text-sm font-bold text-white">
-                              {isStructuredSection(editSelectedSection) ? "Structured Form" : "Raw JSON Editor"}
-                              <span className="ml-2 text-xs font-mono text-[#8E8E95]">— {editSelectedSection}</span>
-                            </h3>
-                            <p className="text-xs text-[#8E8E95] mt-0.5">
-                              {isStructuredSection(editSelectedSection)
-                                ? "Edit nilai field numerik secara langsung melalui form input."
-                                : "Edit JSON mentah section ini. Pastikan format JSON valid sebelum menyimpan."}
-                            </p>
+                      {/* Editor Panel */}
+                      <div className="flex-1 w-full bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl flex flex-col shadow-sm overflow-hidden">
+
+                        {/* Editor Header */}
+                        <div className="px-5 py-4 border-b border-[#1F1F23] flex items-center justify-between bg-[#131316]">
+                          <div className="flex items-center gap-3">
+                            <div className="p-1.5 bg-[#1F1F23] rounded-md">
+                              {isStructuredSection(editSelectedSection) ? <Edit className="w-4 h-4 text-cyan-400" /> : <Code className="w-4 h-4 text-orange-400" />}
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-white capitalize">{editSelectedSection.replace(/_/g, " ")}</h3>
+                              <p className="text-[10px] text-[#8E8E95] font-mono mt-0.5">{isStructuredSection(editSelectedSection) ? "Structured Form Input" : "Raw JSON Editor"}</p>
+                            </div>
                           </div>
                           {!isStructuredSection(editSelectedSection) && (
-                            <button
-                              onClick={() => {
-                                try {
-                                  const parsed = JSON.parse(rawJsonText);
-                                  setRawJsonText(JSON.stringify(parsed, null, 2));
-                                  setRawJsonError(null);
-                                } catch (e: any) {
-                                  setRawJsonError("Format JSON tidak valid: " + e.message);
-                                }
-                              }}
-                              className="rounded-lg border border-[#1F1F23] bg-[#0B0B0C] px-3 py-1.5 text-xs font-semibold text-[#8E8E95] hover:text-white transition-colors"
-                            >
-                              ✨ Format JSON
+                            <button onClick={() => { try { const p = JSON.parse(rawJsonText); setRawJsonText(JSON.stringify(p, null, 2)); } catch (e) {} }}
+                              className="text-[10px] font-bold bg-[#1F1F23] hover:bg-[#27272A] text-white px-3 py-1.5 rounded-lg transition-colors border border-[#27272A]">
+                              Format JSON
                             </button>
                           )}
                         </div>
 
-                        {/* STRUCTURED FORM MODE */}
-                        {isStructuredSection(editSelectedSection) ? (
-                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                            {Object.entries(structuredForm).map(([key, value]) => (
-                              <div key={key}>
-                                <label className="block text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider mb-1.5">
-                                  {key}
-                                </label>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  value={value as number}
-                                  onChange={(e) => setStructuredForm(prev => ({ ...prev, [key]: e.target.value }))}
-                                  className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-3 py-2.5 text-sm text-white font-mono focus:outline-none focus:border-cyan-500/50 transition-colors"
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          /* RAW JSON MODE */
-                          <div className="space-y-3">
-                            {rawJsonError && (
-                              <div className="flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-400">
-                                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                                <span className="font-mono">{rawJsonError}</span>
-                              </div>
-                            )}
-                            <textarea
-                              value={rawJsonText}
-                              onChange={(e) => { setRawJsonText(e.target.value); setRawJsonError(null); }}
-                              rows={24}
-                              spellCheck={false}
-                              className="w-full rounded-2xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-4 text-xs text-emerald-400 font-mono leading-relaxed focus:outline-none focus:border-cyan-500/30 transition-colors resize-y custom-scrollbar"
-                              style={{ minHeight: '400px' }}
-                            />
-                            <p className="text-[10px] text-[#8E8E95]">
-                              Jumlah karakter: {rawJsonText.length.toLocaleString()} • Estimasi baris: {rawJsonText.split('\n').length.toLocaleString()}
-                            </p>
-                          </div>
-                        )}
-
-                        {/* Save / Feedback */}
-                        <div className="mt-6 flex items-center justify-between gap-4">
-                          <div className="flex-1">
-                            {saveSectionSuccess && (
-                              <div className="flex items-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs font-medium text-emerald-400">
-                                <CheckCircle2 className="h-4 w-4 shrink-0" />
-                                <span>{saveSectionSuccess}</span>
-                              </div>
-                            )}
-                            {saveSectionError && (
-                              <div className="flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-xs font-medium text-rose-400">
-                                <AlertTriangle className="h-4 w-4 shrink-0" />
-                                <span>{saveSectionError}</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex gap-3 shrink-0">
-                            <button
-                              onClick={() => handleSectionChange(editSelectedSection)}
-                              disabled={isSavingSection}
-                              className="rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-2.5 text-xs font-bold text-[#8E8E95] hover:text-white transition-colors disabled:opacity-50"
-                            >
-                              Reset
-                            </button>
-                            <button
-                              onClick={handleSectionSave}
-                              disabled={isSavingSection}
-                              className="rounded-xl bg-gradient-to-r from-cyan-500 to-[#3D4BFF] px-6 py-2.5 text-xs font-bold text-white shadow-[0_0_20px_rgba(61,75,255,0.2)] hover:shadow-[0_0_25px_rgba(61,75,255,0.3)] disabled:opacity-50 flex items-center gap-2 transition-all"
-                            >
-                              {isSavingSection ? (
-                                <><RefreshCw className="h-3.5 w-3.5 animate-spin" />Menyimpan...</>
+                        {/* Editor Body */}
+                        <div className="p-5">
+                          {isStructuredSection(editSelectedSection) ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                              {Object.entries(structuredForm).length === 0 ? (
+                                <p className="text-sm text-[#8E8E95] col-span-full py-8 text-center">No structured fields available for this section.</p>
                               ) : (
-                                <><CheckCircle2 className="h-3.5 w-3.5" />Simpan ke Database</>
+                                Object.entries(structuredForm).map(([key, value]) => (
+                                  <div key={key} className="bg-[#131316] p-3 rounded-xl border border-[#1F1F23]">
+                                    <label className="block text-[10px] font-mono text-[#8E8E95] mb-2 truncate" title={key}>{key}</label>
+                                    <input type="number" step="any" value={value as number}
+                                      onChange={(e) => setStructuredForm(prev => ({ ...prev, [key]: e.target.value }))}
+                                      className="w-full bg-[#0B0B0C] border border-[#27272A] rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-cyan-500 transition-colors" />
+                                  </div>
+                                ))
                               )}
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              {rawJsonError && (
+                                <div className="absolute top-4 right-4 max-w-sm bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-xl backdrop-blur-md z-10 font-mono shadow-xl">
+                                  {rawJsonError}
+                                </div>
+                              )}
+                              <div className="bg-[#1E1E1E] rounded-xl border border-[#27272A] overflow-hidden flex">
+                                <div className="w-10 bg-[#191919] border-r border-[#27272A] flex flex-col py-4 items-center text-[10px] text-[#5C5C5C] font-mono select-none">
+                                  {Array.from({ length: Math.min(40, rawJsonText.split('\n').length) }).map((_, i) => (
+                                    <span key={i} className="leading-[21px]">{i + 1}</span>
+                                  ))}
+                                </div>
+                                <textarea value={rawJsonText}
+                                  onChange={(e) => { setRawJsonText(e.target.value); setRawJsonError(null); }}
+                                  spellCheck={false}
+                                  className="flex-1 bg-transparent text-[#D4D4D4] font-mono text-[13px] leading-[21px] p-4 focus:outline-none resize-y custom-scrollbar min-h-[400px]" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Editor Footer */}
+                        <div className="px-5 py-4 border-t border-[#1F1F23] bg-[#0B0B0C] flex items-center justify-between">
+                          <div className="flex-1">
+                            {saveSectionSuccess && <span className="text-xs text-emerald-400 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> {saveSectionSuccess}</span>}
+                            {saveSectionError && <span className="text-xs text-rose-400 flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" /> {saveSectionError}</span>}
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <button onClick={() => handleSectionChange(editSelectedSection)} disabled={isSavingSection}
+                              className="text-xs font-bold text-[#8E8E95] hover:text-white px-4 py-2 transition-colors">
+                              Discard
+                            </button>
+                            <button onClick={handleSectionSave} disabled={isSavingSection}
+                              className="bg-cyan-500 hover:bg-cyan-400 text-black px-6 py-2 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-2 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                              {isSavingSection ? <><RefreshCw className="w-4 h-4 animate-spin" />Menyimpan...</> : "Save Changes"}
                             </button>
                           </div>
                         </div>
+
                       </div>
                     </div>
                   )}
@@ -1097,22 +1060,15 @@ export default function AdminPage() {
               )}
 
             </div>
-          </div>
-        )}
-
-        </main>
-
-        {/* FOOTER */}
-        <footer className="relative z-10 py-6 border-t border-[#1F1F23]/80 text-center text-xs text-[#8E8E95]">
-          <p>© 2026 Tome Ame Channel Analytics Dashboard. All rights reserved.</p>
-        </footer>
+          </main>
+        </div>
+      )}
 
       {/* MODAL EDIT: RENAME MONTH */}
       {editingMonth && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
           <div className="relative max-w-md w-full rounded-3xl border border-[#1F1F23] bg-[#131316] p-6 shadow-2xl text-left overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-cyan-400 to-[#3D4BFF]" />
-            
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Edit className="h-5 w-5 text-cyan-400" />
               Ubah Nama Tampilan Bulan
@@ -1120,49 +1076,25 @@ export default function AdminPage() {
             <p className="text-xs text-[#8E8E95] mt-1.5">
               Anda mengubah nama tampilan bulan untuk key database <code className="text-cyan-400 font-mono">{editingMonth.key}</code>.
             </p>
-
             <div className="mt-4 space-y-4">
               {editError && (
                 <div className="flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-400">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>{editError}</span>
+                  <AlertTriangle className="h-4 w-4" /><span>{editError}</span>
                 </div>
               )}
-
               <div>
                 <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Nama Bulan Baru</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
+                <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                   placeholder="Contoh: Januari 2026"
-                  className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50"
-                  required
-                />
+                  className="w-full rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-3 text-sm text-white focus:outline-none focus:border-cyan-500/50" required />
               </div>
             </div>
-
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setEditingMonth(null)}
-                disabled={isSavingEdit}
-                className="rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-2 text-xs font-bold text-[#8E8E95] hover:text-white"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleRenameMonth}
-                disabled={isSavingEdit || !editName.trim()}
-                className="rounded-xl bg-cyan-500 px-4 py-2 text-xs font-bold text-black hover:bg-cyan-400 disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {isSavingEdit ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 animate-spin" />
-                    Menyimpan...
-                  </>
-                ) : (
-                  "Simpan Perubahan"
-                )}
+              <button onClick={() => setEditingMonth(null)} disabled={isSavingEdit}
+                className="rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-2 text-xs font-bold text-[#8E8E95] hover:text-white">Batal</button>
+              <button onClick={handleRenameMonth} disabled={isSavingEdit || !editName.trim()}
+                className="rounded-xl bg-cyan-500 px-4 py-2 text-xs font-bold text-black hover:bg-cyan-400 disabled:opacity-50 flex items-center gap-1.5">
+                {isSavingEdit ? <><RefreshCw className="h-3 w-3 animate-spin" />Menyimpan...</> : "Simpan Perubahan"}
               </button>
             </div>
           </div>
@@ -1174,16 +1106,12 @@ export default function AdminPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4">
           <div className="relative max-w-md w-full rounded-3xl border border-rose-500/20 bg-[#131316] p-6 shadow-2xl text-left overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-rose-500" />
-            
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-rose-500 animate-pulse" />
               Hapus Data Bulan?
             </h3>
-            
             <div className="mt-3 rounded-2xl bg-rose-500/5 border border-rose-500/20 p-4 space-y-2">
-              <p className="text-xs text-rose-300 font-bold leading-normal">
-                PERINGATAN: Tindakan ini permanen dan tidak dapat dibatalkan!
-              </p>
+              <p className="text-xs text-rose-300 font-bold leading-normal">PERINGATAN: Tindakan ini permanen dan tidak dapat dibatalkan!</p>
               <p className="text-xs text-[#8E8E95] leading-relaxed">
                 Tindakan ini akan menghapus bulan <span className="font-bold text-white">"{deletingMonth.name}" ({deletingMonth.key})</span> dari database Supabase.
               </p>
@@ -1191,42 +1119,23 @@ export default function AdminPage() {
                 Semua file spreadsheets (.xlsx/.csv) asli terkait bulan tersebut di direktori <code className="bg-black/50 p-0.5 rounded px-1 text-zinc-300 font-mono">./dokumen</code> juga akan dihapus agar data tetap sinkron dan tidak memicu penulisan ulang otomatis.
               </p>
             </div>
-
             {deleteError && (
               <div className="mt-4 flex items-center gap-2 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs text-rose-400">
-                <AlertTriangle className="h-4 w-4" />
-                <span>{deleteError}</span>
+                <AlertTriangle className="h-4 w-4" /><span>{deleteError}</span>
               </div>
             )}
-
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setDeletingMonth(null)}
-                disabled={isDeleting}
-                className="rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-2 text-xs font-bold text-[#8E8E95] hover:text-white"
-              >
-                Batal
-              </button>
-              <button
-                onClick={handleDeleteMonth}
-                disabled={isDeleting}
-                className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white hover:bg-rose-600 disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_20px_rgba(239,68,68,0.2)]"
-              >
-                {isDeleting ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 animate-spin" />
-                    Menghapus...
-                  </>
-                ) : (
-                  "Ya, Hapus Permanen"
-                )}
+              <button onClick={() => setDeletingMonth(null)} disabled={isDeleting}
+                className="rounded-xl border border-[#1F1F23] bg-[#0B0B0C] px-4 py-2 text-xs font-bold text-[#8E8E95] hover:text-white">Batal</button>
+              <button onClick={handleDeleteMonth} disabled={isDeleting}
+                className="rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white hover:bg-rose-600 disabled:opacity-50 flex items-center gap-1.5 shadow-[0_0_20px_rgba(239,68,68,0.2)]">
+                {isDeleting ? <><RefreshCw className="h-3 w-3 animate-spin" />Menghapus...</> : "Ya, Hapus Permanen"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      </div>
     </div>
   );
 }

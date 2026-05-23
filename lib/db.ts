@@ -124,7 +124,7 @@ export function getAvailableMonths(customData?: any) {
 
 export function getDashboardData(
   monthKey: string,
-  platform: 'All' | 'Shopee' | 'TikTok' | 'Meta',
+  platform: 'All' | 'Shopee' | 'TikTok' | 'Meta' | 'Website',
   customData?: any
 ): DashboardData | null {
   const dataToUse = customData || rawData;
@@ -154,11 +154,19 @@ export function getDashboardData(
     overview.push({ key: 'visitors', label: 'TikTok Visitors', value: o.visitors || 0, growth: o.growth?.visitors || 0, format: 'number' });
     overview.push({ key: 'conversion_rate', label: 'Conversion Rate', value: o.conversion_rate || 0, growth: o.growth?.conversion_rate || 0, format: 'percent' });
     overview.push({ key: 'aov', label: 'AOV', value: o.aov || 0, growth: 0, format: 'currency' });
-  } else {
-    overview.push({ key: 'gmv', label: 'Meta Revenue', value: 48250000, growth: 0.12, format: 'currency' });
-    overview.push({ key: 'orders', label: 'Meta Orders', value: 320, growth: 0.08, format: 'number' });
-    overview.push({ key: 'visitors', label: 'Meta Visitors', value: 8420, growth: 0.15, format: 'number' });
-    overview.push({ key: 'conversion_rate', label: 'Conversion Rate', value: 0.038, growth: 0.02, format: 'percent' });
+  } else if (platform === 'Meta') {
+    const meta_ads = monthData.meta_ads_performance || [];
+    const meta_gmv = meta_ads.reduce((sum: number, x: any) => sum + (x.gmv || 0), 0);
+    const meta_orders = meta_ads.reduce((sum: number, x: any) => sum + (x.orders || 0), 0);
+    const meta_clicks = meta_ads.reduce((sum: number, x: any) => sum + (x.clicks || 0), 0);
+    overview.push({ key: 'gmv', label: 'Meta Revenue', value: meta_gmv, growth: 0, format: 'currency' });
+    overview.push({ key: 'orders', label: 'Meta Orders', value: meta_orders, growth: 0, format: 'number' });
+    overview.push({ key: 'clicks', label: 'Meta Clicks', value: meta_clicks, growth: 0, format: 'number' });
+  } else if (platform === 'Website') {
+    const w = monthData.website_overview_utm || {};
+    overview.push({ key: 'gmv', label: 'Website Revenue', value: w.gmv || 0, growth: 0, format: 'currency' });
+    overview.push({ key: 'orders', label: 'Website Orders', value: w.orders || 0, growth: 0, format: 'number' });
+    overview.push({ key: 'conversion_rate', label: 'Conversion Rate', value: w.conversion_rate || 0, growth: 0, format: 'percent' });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -170,8 +178,10 @@ export function getDashboardData(
       gmv = t.shopee_gmv || 0; orders = t.shopee_orders || 0; visitors = t.shopee_visitors || 0;
     } else if (platform === 'TikTok') {
       gmv = t.tiktok_gmv || 0; orders = t.tiktok_orders || 0; visitors = t.tiktok_visitors || 0;
-    } else {
-      gmv = Math.round((t.combined_gmv || 0) * 0.15); orders = Math.round((t.combined_orders || 0) * 0.15); visitors = Math.round((t.combined_visitors || 0) * 0.15);
+    } else if (platform === 'Meta') {
+      gmv = t.meta_gmv || 0; orders = t.meta_orders || 0; visitors = 0;
+    } else if (platform === 'Website') {
+      gmv = t.website_gmv || 0; orders = t.website_orders || 0; visitors = 0;
     }
     return { date: t.date, gmv, orders, visitors };
   });
@@ -184,14 +194,14 @@ export function getDashboardData(
       if (platform === 'All') { platformGmv = p.combined_gmv; platformItemsSold = p.combined_items_sold; }
       else if (platform === 'Shopee') { platformGmv = p.shopee_gmv; platformItemsSold = p.shopee_items_sold; }
       else if (platform === 'TikTok') { platformGmv = p.tiktok_gmv; platformItemsSold = p.tiktok_items_sold; }
-      else { platformGmv = Math.round(p.combined_gmv * 0.22); platformItemsSold = Math.round(p.combined_items_sold * 0.22); }
+      else { platformGmv = 0; platformItemsSold = 0; }
       return { name: p.name, status: p.status, shopeeGmv: p.shopee_gmv, shopeeItemsSold: p.shopee_items_sold, tiktokGmv: p.tiktok_gmv, tiktokItemsSold: p.tiktok_items_sold, combinedGmv: p.combined_gmv, combinedItemsSold: p.combined_items_sold, platformGmv, platformItemsSold };
     })
     .filter((p: ConsolidatedProduct) => p.platformGmv > 0)
     .sort((a: ConsolidatedProduct, b: ConsolidatedProduct) => b.platformGmv - a.platformGmv);
 
-  const lives: LiveSession[] = (platform === 'Shopee' || platform === 'Meta') ? [] : monthData.lives || [];
-  const videos: VideoMetric[] = (platform === 'Shopee' || platform === 'Meta') ? [] : monthData.videos || [];
+  const lives: LiveSession[] = (platform === 'Shopee' || platform === 'Meta' || platform === 'Website') ? [] : monthData.lives || [];
+  const videos: VideoMetric[] = (platform === 'Shopee' || platform === 'Meta' || platform === 'Website') ? [] : monthData.videos || [];
 
   const rawAds = monthData.ads || {};
   let adsSummary: AdPerformanceSummary = { cost: 0, gmv: 0, orders: 0, roi: 0 };
@@ -214,8 +224,14 @@ export function getDashboardData(
     adsSummary = { cost: s.cost || 0, gmv: s.gmv || 0, orders: s.orders || 0, roi: s.roi || 0 };
     tiktokLiveAdsList = rawAds.tiktok?.live || [];
     tiktokProductAdsList = rawAds.tiktok?.product || [];
-  } else {
-    adsSummary = { cost: 9200000, gmv: 48250000, orders: 320, roi: 5.24 };
+  } else if (platform === 'Meta') {
+    const meta_ads = monthData.meta_ads_performance || [];
+    const meta_cost = meta_ads.reduce((sum: number, x: any) => sum + (x.cost || 0), 0);
+    const meta_gmv = meta_ads.reduce((sum: number, x: any) => sum + (x.gmv || 0), 0);
+    const meta_orders = meta_ads.reduce((sum: number, x: any) => sum + (x.orders || 0), 0);
+    adsSummary = { cost: meta_cost, gmv: meta_gmv, orders: meta_orders, roi: meta_cost > 0 ? meta_gmv / meta_cost : 0 };
+  } else if (platform === 'Website') {
+    adsSummary = { cost: 0, gmv: 0, orders: 0, roi: 0 };
   }
 
   return {
