@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,7 +16,7 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import { Card } from "@/components/ui/card";
-import { formatCompactCurrency, formatNumber } from "@/lib/format";
+import { formatCompactCurrency } from "@/lib/format";
 import { DailyTrendPoint } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
@@ -38,7 +38,7 @@ interface TrendChartProps {
   className?: string;
 }
 
-export default function TrendChart({ dataPoints, platform, className }: TrendChartProps) {
+export default function TrendChart({ dataPoints, platform: _platform, className }: TrendChartProps) {
   if (!dataPoints || dataPoints.length === 0) {
     return (
       <Card className="flex h-80 items-center justify-center border border-[#1F1F23] bg-[#131316] p-6">
@@ -60,8 +60,12 @@ export default function TrendChart({ dataPoints, platform, className }: TrendCha
   const labels = dataPoints.map((dp) => formatDate(dp.date));
   
   // Create synthetic cost data (30% of GMV) for visual demonstration of dual-line
+  // Use a deterministic sine-wave based pseudo-random generator to remain pure for React 19
   const gmvData = dataPoints.map((dp) => dp.gmv);
-  const costData = dataPoints.map((dp) => dp.gmv * 0.3 + (Math.random() * dp.gmv * 0.1));
+  const costData = dataPoints.map((dp, index) => {
+    const sineFactor = Math.abs(Math.sin(index + 1));
+    return dp.gmv * 0.3 + (sineFactor * dp.gmv * 0.1);
+  });
 
   const chartData = {
     labels,

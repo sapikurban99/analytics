@@ -16,75 +16,50 @@ import {
   Activity,
   Users,
   DollarSign,
-  Award,
   ShoppingBag,
-  Tv,
-  Play,
-  Percent,
   Coins,
-  Store,
-  Eye,
-  Heart,
   ArrowDownRight,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
 } from "lucide-react";
 import Sidebar from "@/components/ui/sidebar";
-
 import MetricCard from "@/components/ui/metric-card";
 import TrendChart from "@/components/ui/trend-chart";
-import RoasGauge from "@/components/ui/roas-gauge";
-import AIInsight from "@/components/ui/ai-insight";
 import DataTable, { ColumnDef } from "@/components/ui/data-table";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { exportToCSV } from "@/lib/export";
 import { cn } from "@/lib/utils";
+
+import OverviewSection from "@/components/dashboard/overview-section";
+import ProductPerformance from "@/components/dashboard/product-performance";
+import {
+  TikTokOverview,
+  TikTokProductAnalyz,
+  TikTokChannelAnalyz,
+  TikTokAffiliateAnalyz,
+} from "@/components/dashboard/tiktok-sections";
+import {
+  ShopeeOverview,
+  ShopeeProductAnalyz,
+  ShopeeChannelAnalyz,
+  ShopeeAffiliateAnalyz,
+} from "@/components/dashboard/shopee-sections";
+import { WebsiteOverview, MetaAdsPerformance } from "@/components/dashboard/website-meta-sections";
+
 export default function Home() {
   const [activeTab, setActiveTab] = useState("overview");
-  const [selectedMonth, setSelectedMonth] = useState("2026-04"); // Default to latest month
+  const [selectedMonth, setSelectedMonth] = useState("2026-04");
   const [selectedPlatform, setSelectedPlatform] = useState<"All" | "Shopee" | "TikTok" | "Meta">("All");
 
   const handleActiveTabChange = (tab: string) => {
     setActiveTab(tab);
-    if (tab.endsWith("-shopee")) {
-      setSelectedPlatform("Shopee");
-    } else if (tab.endsWith("-tiktok")) {
-      setSelectedPlatform("TikTok");
-    } else if (tab.endsWith("-meta")) {
-      setSelectedPlatform("Meta");
-    }
   };
 
   const handlePlatformFilterChange = (platform: "All" | "Shopee" | "TikTok" | "Meta") => {
     setSelectedPlatform(platform);
-    const suffix = platform === "All" ? "" : `-${platform.toLowerCase()}`;
-    if (activeTab.startsWith("komisi-")) {
-      if (platform === "All") {
-        setActiveTab("overview");
-      } else {
-        setActiveTab(`komisi${suffix}`);
-      }
-    } else if (activeTab.startsWith("laba-rugi-")) {
-      if (platform === "All") {
-        setActiveTab("overview");
-      } else {
-        setActiveTab(`laba-rugi${suffix}`);
-      }
-    } else if (activeTab.startsWith("products-") || activeTab === "products") {
-      if (platform === "All") {
-        setActiveTab("overview");
-      } else {
-        setActiveTab(`products${suffix}`);
-      }
-    }
   };
 
-  // Dynamic metrics from Supabase database
   const [metricsData, setMetricsData] = useState<any>(null);
   const [isLoadingMetrics, setIsLoadingMetrics] = useState(true);
 
-  // Fetch metrics on mount
   React.useEffect(() => {
     const fetchMetrics = async () => {
       try {
@@ -102,7 +77,6 @@ export default function Home() {
     fetchMetrics();
   }, []);
 
-  // Keep track of the currently active table's filtered/sorted data for dynamic CSV exports
   const [filteredProducts, setFilteredProducts] = useState<ConsolidatedProduct[]>([]);
   const [filteredLives, setFilteredLives] = useState<LiveSession[]>([]);
   const [filteredVideos, setFilteredVideos] = useState<VideoMetric[]>([]);
@@ -110,523 +84,33 @@ export default function Home() {
   const [filteredTiktokLiveAds, setFilteredTiktokLiveAds] = useState<TiktokLiveAdItem[]>([]);
   const [filteredTiktokProductAds, setFilteredTiktokProductAds] = useState<TiktokProductAdItem[]>([]);
 
+  const availableMonths = useMemo(() => getAvailableMonths(metricsData), [metricsData]);
 
-  // 1. Get available months
-  const availableMonths = useMemo(() => {
-    return getAvailableMonths(metricsData);
-  }, [metricsData]);
-
-  // 2. Fetch data based on filters
-  const dashboardData = useMemo(() => {
-    return getDashboardData(selectedMonth, selectedPlatform, metricsData);
-  }, [selectedMonth, selectedPlatform, metricsData]);
-
-  // 3. Auto-select latest month from fetched available months
-  React.useEffect(() => {
+  const activeMonth = useMemo(() => {
     if (availableMonths && availableMonths.length > 0) {
       const exists = availableMonths.some((m) => m.key === selectedMonth);
-      if (!exists) {
-        setSelectedMonth(availableMonths[0].key);
-      }
+      if (exists) return selectedMonth;
+      return availableMonths[0].key;
     }
+    return selectedMonth;
   }, [availableMonths, selectedMonth]);
 
-  // 4. Calculate distributions for GMV (Shopee vs TikTok)
-  const platformGMVDistribution = useMemo(() => {
-    const rawMonthData = getDashboardData(selectedMonth, "All", metricsData);
-    if (!rawMonthData) return { shopeePercent: 50, tiktokPercent: 50, shopeeVal: 0, tiktokVal: 0 };
-    
-    const shopeeData = getDashboardData(selectedMonth, "Shopee", metricsData);
-    const tiktokData = getDashboardData(selectedMonth, "TikTok", metricsData);
-    
-    const shopeeGmv = shopeeData?.overview.find((m) => m.key === "gmv")?.value || 0;
-    const tiktokGmv = tiktokData?.overview.find((m) => m.key === "gmv")?.value || 0;
-    const totalGmv = shopeeGmv + tiktokGmv;
-    
-    if (totalGmv === 0) return { shopeePercent: 0, tiktokPercent: 0, shopeeVal: 0, tiktokVal: 0 };
-    
-    return {
-      shopeePercent: (shopeeGmv / totalGmv) * 100,
-      tiktokPercent: (tiktokGmv / totalGmv) * 100,
-      shopeeVal: shopeeGmv,
-      tiktokVal: tiktokGmv
-    };
-  }, [selectedMonth, metricsData]);
+  const dashboardData = useMemo(() => getDashboardData(activeMonth, selectedPlatform, metricsData), [activeMonth, selectedPlatform, metricsData]);
 
-  // 6. Define Table Columns
-  
-  // Products table columns
-  const productColumns = useMemo<ColumnDef<ConsolidatedProduct>[]>(() => {
-    const cols: ColumnDef<ConsolidatedProduct>[] = [
-      {
-        key: "name",
-        header: "Product Name",
-        sortable: true,
-        render: (p) => (
-          <div className="max-w-xs sm:max-w-sm">
-            <p className="truncate font-semibold text-zinc-900 dark:text-zinc-50" title={p.name}>
-              {p.name}
-            </p>
-          </div>
-        ),
-      },
-      {
-        key: "status",
-        header: "Status",
-        sortable: true,
-        align: "center",
-        render: (p) => (
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold shadow-sm",
-              p.status === "Active"
-                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400"
-                : "bg-zinc-100 text-zinc-550 dark:bg-zinc-800 dark:text-zinc-500"
-            )}
-          >
-            {p.status}
-          </span>
-        ),
-      },
-    ];
-
-    if (selectedPlatform === "All") {
-      cols.push({
-        key: "shopeeGmv",
-        header: "Shopee GMV",
-        sortable: true,
-        align: "right",
-        render: (p) => <span className="text-zinc-650 dark:text-zinc-350">{formatCurrency(p.shopeeGmv)}</span>,
-      });
-      cols.push({
-        key: "tiktokGmv",
-        header: "TikTok GMV",
-        sortable: true,
-        align: "right",
-        render: (p) => <span className="text-zinc-650 dark:text-zinc-350">{formatCurrency(p.tiktokGmv)}</span>,
-      });
-      cols.push({
-        key: "combinedGmv",
-        header: "Total GMV",
-        sortable: true,
-        align: "right",
-        render: (p) => <span className="font-semibold text-rose-500">{formatCurrency(p.combinedGmv)}</span>,
-      });
-      cols.push({
-        key: "combinedItemsSold",
-        header: "Items Sold",
-        sortable: true,
-        align: "right",
-        render: (p) => <span className="font-medium">{formatNumber(p.combinedItemsSold)}</span>,
-      });
-    } else {
-      cols.push({
-        key: "platformGmv",
-        header: `${selectedPlatform} GMV`,
-        sortable: true,
-        align: "right",
-        render: (p) => (
-          <span className="font-semibold text-rose-500">{formatCurrency(p.platformGmv)}</span>
-        ),
-      });
-      cols.push({
-        key: "platformItemsSold",
-        header: "Items Sold",
-        sortable: true,
-        align: "right",
-        render: (p) => <span className="font-medium">{formatNumber(p.platformItemsSold)}</span>,
-      });
-    }
-
-    return cols;
-  }, [selectedPlatform]);
-
-  // Live Streams columns
-  const liveColumns = useMemo<ColumnDef<LiveSession>[]>(() => {
-    return [
-      {
-        key: "creator_name",
-        header: "Host Creator Name",
-        sortable: true,
-        render: (item) => (
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-50 text-[10px] font-bold text-rose-500 dark:bg-rose-950/30">
-              {item.creator_name.substring(0, 2).toUpperCase()}
-            </div>
-            <p className="font-semibold text-zinc-900 dark:text-zinc-50">{item.creator_name}</p>
-          </div>
-        ),
-      },
-      {
-        key: "type",
-        header: "Live Type",
-        sortable: true,
-        align: "center",
-        render: (item) => (
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold",
-              item.type === "Seller"
-                ? "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400"
-                : "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-            )}
-          >
-            {item.type}
-          </span>
-        ),
-      },
-      {
-        key: "duration",
-        header: "Duration",
-        sortable: false,
-        align: "center",
-      },
-      {
-        key: "gmv",
-        header: "Attributed GMV",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-semibold text-rose-500">{formatCurrency(item.gmv)}</span>,
-      },
-      {
-        key: "items_sold",
-        header: "Items Sold",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.items_sold)}</span>,
-      },
-      {
-        key: "views",
-        header: "Views",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.views)}</span>,
-      },
-      {
-        key: "clicks",
-        header: "Product Clicks",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.clicks)}</span>,
-      },
-      {
-        key: "ctr",
-        header: "CTR",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-medium text-emerald-500">{formatPercent(item.ctr)}</span>,
-      },
-    ];
-  }, []);
-
-  // Short videos columns
-  const videoColumns = useMemo<ColumnDef<VideoMetric>[]>(() => {
-    return [
-      {
-        key: "creator",
-        header: "Creator",
-        sortable: true,
-        render: (item) => <span className="font-semibold text-zinc-900 dark:text-zinc-50">{item.creator}</span>,
-      },
-      {
-        key: "title",
-        header: "Video Title / Info",
-        sortable: true,
-        render: (item) => (
-          <div className="max-w-xs sm:max-w-md">
-            <p className="truncate text-zinc-700 dark:text-zinc-350" title={item.title}>
-              {item.title}
-            </p>
-          </div>
-        ),
-      },
-      {
-        key: "type",
-        header: "Video Type",
-        sortable: true,
-        align: "center",
-        render: (item) => (
-          <span
-            className={cn(
-              "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold",
-              item.type === "Seller"
-                ? "bg-purple-50 text-purple-600 dark:bg-purple-950/30 dark:text-purple-400"
-                : "bg-amber-50 text-amber-600 dark:bg-amber-950/30 dark:text-amber-400"
-            )}
-          >
-            {item.type}
-          </span>
-        ),
-      },
-      {
-        key: "views",
-        header: "Views (VV)",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.views)}</span>,
-      },
-      {
-        key: "gmv",
-        header: "Attributed GMV",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-semibold text-rose-500">{formatCurrency(item.gmv)}</span>,
-      },
-      {
-        key: "items_sold",
-        header: "Items Sold",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.items_sold)}</span>,
-      },
-      {
-        key: "ctr",
-        header: "CTOR",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-medium text-emerald-500">{formatPercent(item.ctr)}</span>,
-      },
-      {
-        key: "likes",
-        header: "Likes",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.likes)}</span>,
-      },
-      {
-        key: "comments",
-        header: "Comments",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.comments)}</span>,
-      },
-    ];
-  }, []);
-
-  // Shopee Ads Columns
-  const shopeeAdColumns = useMemo<ColumnDef<ShopeeAdItem>[]>(() => {
-    return [
-      {
-        key: "ad_name",
-        header: "Shopee Ad Campaign Name",
-        sortable: true,
-        render: (item) => <span className="font-semibold text-zinc-900 dark:text-zinc-50">{item.ad_name}</span>,
-      },
-      {
-        key: "impressions",
-        header: "Impressions",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.impressions)}</span>,
-      },
-      {
-        key: "clicks",
-        header: "Clicks",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.clicks)}</span>,
-      },
-      {
-        key: "cost",
-        header: "Expense / Spend",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="text-zinc-650 dark:text-zinc-350">{formatCurrency(item.cost)}</span>,
-      },
-      {
-        key: "gmv",
-        header: "Attributed GMV",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-semibold text-rose-500">{formatCurrency(item.gmv)}</span>,
-      },
-      {
-        key: "orders",
-        header: "Conversions",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.orders)}</span>,
-      },
-      {
-        key: "ctr",
-        header: "CTR",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-medium text-emerald-500">{formatPercent(item.ctr)}</span>,
-      },
-      {
-        key: "roas",
-        header: "ROAS",
-        sortable: true,
-        align: "right",
-        render: (item) => (
-          <span
-            className={cn(
-              "font-bold",
-              item.roas >= 4
-                ? "text-emerald-500"
-                : item.roas >= 2
-                ? "text-amber-500"
-                : "text-rose-500"
-            )}
-          >
-            {item.roas.toFixed(2)}x
-          </span>
-        ),
-      },
-    ];
-  }, []);
-
-  // TikTok Live Ads Columns
-  const tiktokLiveAdColumns = useMemo<ColumnDef<TiktokLiveAdItem>[]>(() => {
-    return [
-      {
-        key: "campaign_name",
-        header: "LIVE Campaign Name",
-        sortable: true,
-        render: (item) => <span className="font-semibold text-zinc-900 dark:text-zinc-50">{item.campaign_name}</span>,
-      },
-      {
-        key: "cost",
-        header: "Cost / Budget",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="text-zinc-650 dark:text-zinc-350">{formatCurrency(item.cost)}</span>,
-      },
-      {
-        key: "gmv",
-        header: "Gross Revenue (GMV)",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-semibold text-rose-500">{formatCurrency(item.gmv)}</span>,
-      },
-      {
-        key: "orders",
-        header: "SKU Orders",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.orders)}</span>,
-      },
-      {
-        key: "views",
-        header: "LIVE Views",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.views)}</span>,
-      },
-      {
-        key: "roi",
-        header: "ROI",
-        sortable: true,
-        align: "right",
-        render: (item) => (
-          <span
-            className={cn(
-              "font-bold",
-              item.roi >= 4
-                ? "text-emerald-500"
-                : item.roi >= 2
-                ? "text-amber-500"
-                : "text-rose-500"
-            )}
-          >
-            {item.roi.toFixed(2)}x
-          </span>
-        ),
-      },
-    ];
-  }, []);
-
-  // TikTok Product Ads Columns
-  const tiktokProductAdColumns = useMemo<ColumnDef<TiktokProductAdItem>[]>(() => {
-    return [
-      {
-        key: "campaign_name",
-        header: "Product Campaign Name",
-        sortable: true,
-        render: (item) => <span className="font-semibold text-zinc-900 dark:text-zinc-50">{item.campaign_name}</span>,
-      },
-      {
-        key: "cost",
-        header: "Cost / Expense",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="text-zinc-650 dark:text-zinc-350">{formatCurrency(item.cost)}</span>,
-      },
-      {
-        key: "gmv",
-        header: "Attributed GMV",
-        sortable: true,
-        align: "right",
-        render: (item) => <span className="font-semibold text-rose-500">{formatCurrency(item.gmv)}</span>,
-      },
-      {
-        key: "orders",
-        header: "SKU Orders",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.orders)}</span>,
-      },
-      {
-        key: "impressions",
-        header: "Impressions",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.impressions)}</span>,
-      },
-      {
-        key: "clicks",
-        header: "Clicks",
-        sortable: true,
-        align: "right",
-        render: (item) => <span>{formatNumber(item.clicks)}</span>,
-      },
-      {
-        key: "roi",
-        header: "ROI",
-        sortable: true,
-        align: "right",
-        render: (item) => (
-          <span
-            className={cn(
-              "font-bold",
-              item.roi >= 4
-                ? "text-emerald-500"
-                : item.roi >= 2
-                ? "text-amber-500"
-                : "text-rose-500"
-            )}
-          >
-            {item.roi.toFixed(2)}x
-          </span>
-        ),
-      },
-    ];
-  }, []);
-
-  // 3. Dynamic card icons based on keys
   const getMetricIcon = (key: string) => {
     switch (key) {
-      case "gmv":
-        return DollarSign;
-      case "orders":
-        return ShoppingBag;
-      case "visitors":
-        return Users;
-      case "conversion_rate":
-        return Percent;
-      case "repeat_purchase_rate":
-        return Activity;
-      case "aov":
-        return Coins;
-      default:
-        return TrendingUp;
+      case "gmv": return DollarSign;
+      case "orders": return ShoppingBag;
+      case "visitors": return Users;
+      case "conversion_rate": return Activity;
+      case "aov": return Coins;
+      default: return TrendingUp;
     }
   };
 
   if (!dashboardData) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-white text-zinc-900">
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0B0B0C] text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-rose-500 border-t-transparent" />
           <p className="text-sm font-semibold tracking-wide">Loading Tome Ame Analytics...</p>
@@ -635,1082 +119,158 @@ export default function Home() {
     );
   }
 
-  // 5. Handles CSV Export based on active tab
+  const getPageTitle = () => {
+    const titles: Record<string, string> = {
+      "overview": "Performance Sales Summary Multi-Channel",
+      "product-performance": "Product Performance",
+      "tiktok-overview": "TikTok Overview",
+      "tiktok-product": "Product Analyz - TikTok",
+      "tiktok-channel": "Channel Analyz - TikTok",
+      "tiktok-affiliate": "Affiliate Analyz - TikTok",
+      "shopee-overview": "Shopee Overview",
+      "shopee-product": "Product Analyz - Shopee",
+      "shopee-channel": "Channel Analyz - Shopee",
+      "shopee-affiliate": "Affiliate Analyz - Shopee",
+      "website": "Website Overview",
+      "meta-ads": "Meta Ads Performance",
+    };
+    return titles[activeTab] || "Analytics";
+  };
+
+  const getPageDesc = () => {
+    const descs: Record<string, string> = {
+      "overview": "Ringkasan performa omnichannel marketplace",
+      "product-performance": "Tabel pertumbuhan produk fashion wanita",
+      "tiktok-overview": "Overview performa TikTok Shop",
+      "tiktok-product": "Audit kinerja konversi SKU TikTok",
+      "tiktok-channel": "Analisis konten Seller vs Affiliate TikTok",
+      "tiktok-affiliate": "Performa jaringan kreator afiliasi TikTok",
+      "shopee-overview": "Overview performa Shopee",
+      "shopee-product": "Audit kinerja konversi SKU Shopee",
+      "shopee-channel": "Komposisi & growth revenue Shopee",
+      "shopee-affiliate": "Performa KOL Shopee Share",
+      "website": "Metrik ritel D2C berdasarkan UTM Source",
+      "meta-ads": "Pelacakan periklanan FB/IG Ads",
+    };
+    return descs[activeTab] || "";
+  };
+
   const handleExport = () => {
     const monthLabel = dashboardData.monthName.toLowerCase();
     const platformLabel = selectedPlatform.toLowerCase();
-    
+
     if (activeTab === "overview") {
-      const exportCols = [
-        { key: "key", header: "Metric Code" },
-        { key: "label", header: "Metric Name" },
-        { key: "value", header: "Value" },
-        { key: "growth", header: "MoM Growth (Decimal)" },
-      ];
-      exportToCSV(
-        `tomeame-overview-${platformLabel}-${monthLabel}-2026`,
-        dashboardData.overview,
-        exportCols
-      );
-    } else if (activeTab === "products") {
-      const exportCols = [
-        { key: "name", header: "Product Name" },
-        { key: "status", header: "Status" },
-        { key: "shopeeGmv", header: "Shopee GMV (Rp)" },
-        { key: "shopeeItemsSold", header: "Shopee Items Sold" },
-        { key: "tiktokGmv", header: "TikTok GMV (Rp)" },
-        { key: "tiktokItemsSold", header: "TikTok Items Sold" },
-        { key: "combinedGmv", header: "Combined GMV (Rp)" },
-        { key: "combinedItemsSold", header: "Combined Items Sold" },
-        { key: "platformGmv", header: "Selected Attributed GMV (Rp)" },
-        { key: "platformItemsSold", header: "Selected Attributed Items Sold" },
-      ];
-      exportToCSV(
-        `tomeame-products-${platformLabel}-${monthLabel}-2026`,
-        filteredProducts.length > 0 ? filteredProducts : dashboardData.products,
-        exportCols
-      );
-    } else if (activeTab === "lives") {
-      const exportCols = [
-        { key: "creator_name", header: "Host Creator Name" },
-        { key: "type", header: "Live Type" },
-        { key: "duration", header: "Duration" },
-        { key: "duration_minutes", header: "Duration (Minutes)" },
-        { key: "gmv", header: "Attributed GMV (Rp)" },
-        { key: "items_sold", header: "Items Sold" },
-        { key: "views", header: "Views" },
-        { key: "clicks", header: "Product Clicks" },
-        { key: "ctr", header: "CTR (Decimal)" },
-      ];
-      exportToCSV(
-        `tomeame-lives-${platformLabel}-${monthLabel}-2026`,
-        filteredLives.length > 0 ? filteredLives : dashboardData.lives,
-        exportCols
-      );
-    } else if (activeTab === "videos") {
-      const exportCols = [
-        { key: "creator", header: "Creator" },
-        { key: "title", header: "Video Title" },
-        { key: "type", header: "Video Type" },
-        { key: "views", header: "Views (VV)" },
-        { key: "gmv", header: "Attributed GMV (Rp)" },
-        { key: "items_sold", header: "Items Sold" },
-        { key: "ctr", header: "CTR/CTOR (Decimal)" },
-        { key: "likes", header: "Likes" },
-        { key: "comments", header: "Comments" },
-      ];
-      exportToCSV(
-        `tomeame-videos-${platformLabel}-${monthLabel}-2026`,
-        filteredVideos.length > 0 ? filteredVideos : dashboardData.videos,
-        exportCols
-      );
-    } else if (activeTab === "ads") {
-      // Export multi table campaign lists
-      if (selectedPlatform === "Shopee" || selectedPlatform === "All") {
-        const cols = [
-          { key: "ad_name", header: "Shopee Ad Name" },
-          { key: "impressions", header: "Impressions" },
-          { key: "clicks", header: "Clicks" },
-          { key: "cost", header: "Expense (Rp)" },
-          { key: "gmv", header: "Attributed GMV (Rp)" },
-          { key: "orders", header: "Orders/Conversions" },
-          { key: "ctr", header: "CTR (Decimal)" },
-          { key: "roas", header: "ROAS" },
-        ];
-        exportToCSV(
-          `tomeame-ads-shopee-${monthLabel}-2026`,
-          filteredShopeeAds.length > 0 ? filteredShopeeAds : dashboardData.ads.shopee,
-          cols
-        );
-      }
-      
-      if (selectedPlatform === "TikTok" || selectedPlatform === "All") {
-        const liveCols = [
-          { key: "campaign_name", header: "TikTok Live Campaign Name" },
-          { key: "cost", header: "Cost (Rp)" },
-          { key: "gmv", header: "Gross Revenue (Rp)" },
-          { key: "orders", header: "SKU Orders" },
-          { key: "views", header: "LIVE Views" },
-          { key: "roi", header: "ROI" },
-        ];
-        const prodCols = [
-          { key: "campaign_name", header: "TikTok Product Campaign Name" },
-          { key: "cost", header: "Cost (Rp)" },
-          { key: "gmv", header: "Gross Revenue (Rp)" },
-          { key: "orders", header: "SKU Orders" },
-          { key: "impressions", header: "Ad Impressions" },
-          { key: "clicks", header: "Ad Clicks" },
-          { key: "roi", header: "ROI" },
-        ];
-        
-        exportToCSV(
-          `tomeame-ads-tiktok-live-${monthLabel}-2026`,
-          filteredTiktokLiveAds.length > 0 ? filteredTiktokLiveAds : dashboardData.ads.tiktokLive,
-          liveCols
-        );
-        exportToCSV(
-          `tomeame-ads-tiktok-product-${monthLabel}-2026`,
-          filteredTiktokProductAds.length > 0 ? filteredTiktokProductAds : dashboardData.ads.tiktokProduct,
-          prodCols
-        );
-      }
+      exportToCSV(`tomeame-overview-${platformLabel}-${monthLabel}-2026`, dashboardData.overview, [
+        { key: "key", header: "Metric Code" }, { key: "label", header: "Metric Name" }, { key: "value", header: "Value" }, { key: "growth", header: "MoM Growth" },
+      ]);
+    } else if (activeTab === "product-performance" || activeTab.startsWith("tiktok-product") || activeTab.startsWith("shopee-product")) {
+      exportToCSV(`tomeame-products-${platformLabel}-${monthLabel}-2026`, filteredProducts.length > 0 ? filteredProducts : dashboardData.products, [
+        { key: "name", header: "Product Name" }, { key: "status", header: "Status" }, { key: "platformGmv", header: "GMV (Rp)" }, { key: "platformItemsSold", header: "Items Sold" },
+      ]);
+    } else if (activeTab === "tiktok-channel") {
+      exportToCSV(`tomeame-videos-${platformLabel}-${monthLabel}-2026`, filteredVideos.length > 0 ? filteredVideos : dashboardData.videos, [
+        { key: "creator", header: "Creator" }, { key: "title", header: "Video Title" }, { key: "gmv", header: "GMV (Rp)" }, { key: "items_sold", header: "Items Sold" },
+      ]);
     }
   };
 
-  // Dynamic financial calculations for Laba Rugi and Komisi
-  const financialData = useMemo(() => {
-    if (!dashboardData) return null;
-
-    const gmv = dashboardData.overview.find((m) => m.key === "gmv")?.value || 0;
-    const hpp = gmv * 0.45; // Modeled HPP at 45% of GMV
-    const labaKotor = gmv - hpp;
-
-    // Platform specific marketplace fees (Commission + transaction fee)
-    const platformFeeRate = selectedPlatform === "Shopee" ? 0.055 : selectedPlatform === "TikTok" ? 0.05 : selectedPlatform === "Meta" ? 0 : 0.052;
-    const platformFee = gmv * platformFeeRate;
-
-    // Sourced ad spend from CPC
-    const adSpend = dashboardData.ads.summary.cost || 0;
-
-    // Sourced dynamic affiliate GMV
-    const affiliateLiveGmv = dashboardData.lives.filter((l) => l.type === "Affiliate").reduce((acc, l) => acc + l.gmv, 0);
-    const affiliateVideoGmv = dashboardData.videos.filter((v) => v.type === "Affiliate").reduce((acc, v) => acc + v.gmv, 0);
-    const affiliateGmv = affiliateLiveGmv + affiliateVideoGmv;
-    
-    // Sourced dynamic direct GMV
-    const directGmv = gmv - affiliateGmv;
-
-    // Estimate affiliate commission at 8% of affiliate GMV
-    const affiliateCommission = affiliateGmv * 0.08;
-
-    // Total Operational Expenses
-    const totalExpenses = platformFee + adSpend + affiliateCommission;
-
-    // Net Profit
-    const labaBersih = labaKotor - totalExpenses;
-    const npm = gmv > 0 ? (labaBersih / gmv) * 100 : 0;
-
-    // Top Affiliate Creators Leaderboard
-    // We combine lives and videos affiliate creator records!
-    const creatorMap: Record<string, { creator: string, gmv: number, orders: number, views: number, count: number, source: string }> = {};
-    
-    dashboardData.lives.forEach((l) => {
-      const name = l.creator_name || l.creator;
-      if (!name) return;
-      if (!creatorMap[name]) {
-        creatorMap[name] = { creator: name, gmv: 0, orders: 0, views: 0, count: 0, source: "LIVE" };
-      }
-      creatorMap[name].gmv += l.gmv;
-      creatorMap[name].orders += l.items_sold;
-      creatorMap[name].views += l.views;
-      creatorMap[name].count += 1;
-    });
-
-    dashboardData.videos.forEach((v) => {
-      const name = v.creator;
-      if (!name) return;
-      if (!creatorMap[name]) {
-        creatorMap[name] = { creator: name, gmv: 0, orders: 0, views: 0, count: 0, source: "Video" };
-      } else {
-        creatorMap[name].source = "LIVE & Video";
-      }
-      creatorMap[name].gmv += v.gmv;
-      creatorMap[name].orders += v.items_sold;
-      creatorMap[name].views += v.views;
-      creatorMap[name].count += 1;
-    });
-
-    // Sort by GMV descending and keep top 8
-    const topAffiliates = Object.values(creatorMap)
-      .sort((a, b) => b.gmv - a.gmv)
-      .slice(0, 8)
-      .map((c) => ({
-        ...c,
-        estimatedCommission: c.gmv * 0.08,
-      }));
-
-    return {
-      gmv,
-      hpp,
-      labaKotor,
-      platformFee,
-      platformFeeRate,
-      adSpend,
-      affiliateGmv,
-      directGmv,
-      affiliateCommission,
-      totalExpenses,
-      labaBersih,
-      npm,
-      topAffiliates,
-    };
-  }, [dashboardData, selectedPlatform]);
-
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0B0B0C] text-[#F4F4F6]">
-      {/* 1. Sidebar Nav */}
       <Sidebar activeTab={activeTab} setActiveTab={handleActiveTabChange} />
 
-      {/* 2. Main content container */}
       <div className="flex flex-1 flex-col overflow-y-auto relative custom-scrollbar">
-        {/* Background ambient lighting */}
         <div className="pointer-events-none absolute left-[20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[#3D4BFF]/5 blur-[120px]" />
         <div className="pointer-events-none absolute right-[10%] top-[20%] h-[400px] w-[400px] rounded-full bg-cyan-500/5 blur-[100px]" />
 
-        {/* 4. Scrollable Content Wrapper */}
         <main className="flex-1 p-8 space-y-8 z-10">
-          
-          {/* TOP HEADER SECTION */}
+          {/* TOP HEADER */}
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-white">
-                {activeTab === 'overview' ? 'Dashboard' : 
-                 activeTab === 'videos' ? 'Video Overview' : 
-                 activeTab === 'ai-insight' ? 'AI Insight' : 
-                 activeTab.startsWith('komisi-') ? `Komisi - ${selectedPlatform}` :
-                 activeTab.startsWith('laba-rugi-') ? `Laba Rugi - ${selectedPlatform}` :
-                 activeTab.startsWith('products-') ? `Analisa Produk - ${selectedPlatform}` :
-                 'Analytics'}
-              </h1>
-              <p className="text-sm text-[#8E8E95] mt-1">
-                {activeTab === 'overview' ? 'Ringkasan performa GMV MAX' : 
-                 activeTab === 'videos' ? 'Analisis performa konten video' : 
-                 activeTab.startsWith('komisi-') ? `Analisis komisi dan fee program untuk ${selectedPlatform}` :
-                 activeTab.startsWith('laba-rugi-') ? `Laporan Laba Rugi (P&L) untuk ${selectedPlatform}` :
-                 activeTab.startsWith('products-') ? `Analisis performa produk terlaris untuk ${selectedPlatform}` :
-                 'Detail performa analytics'}
-              </p>
+              <h1 className="text-3xl font-bold tracking-tight text-white">{getPageTitle()}</h1>
+              <p className="text-sm text-[#8E8E95] mt-1">{getPageDesc()}</p>
             </div>
 
             <div className="flex flex-col items-end gap-3">
               <div className="flex items-center gap-4">
-                 {/* Period Filter Pill */}
-                 <div className="flex items-center rounded-full border border-[#1F1F23] bg-[#131316] p-1">
-                   <div className="px-3 py-1 text-xs font-bold text-[#8E8E95]">PERIODE</div>
-                   <div className="h-4 w-px bg-[#1F1F23] mx-1"></div>
-                   <div className="flex gap-1">
-                     {availableMonths.slice(0, 3).map((month) => (
-                       <button
-                         key={month.key}
-                         onClick={() => setSelectedMonth(month.key)}
-                         className={cn(
-                           "rounded-full px-4 py-1.5 text-xs font-semibold transition-all",
-                           selectedMonth === month.key 
-                             ? "bg-[#11112B] text-white border border-[#3D4BFF]/50 shadow-[0_0_15px_rgba(61,75,255,0.2)]" 
-                             : "text-[#8E8E95] hover:text-white border border-transparent"
-                         )}
-                       >
-                         {month.label}
-                       </button>
-                     ))}
-                   </div>
-                 </div>
-                 
-                 <button onClick={() => setSelectedMonth(availableMonths[0]?.key)} className="text-xs font-semibold text-[#8E8E95] hover:text-white transition-colors underline underline-offset-4">
-                   Reset Filter
-                 </button>
+                <div className="flex items-center rounded-full border border-[#1F1F23] bg-[#131316] p-1">
+                  <div className="px-3 py-1 text-xs font-bold text-[#8E8E95]">PERIODE</div>
+                  <div className="h-4 w-px bg-[#1F1F23] mx-1"></div>
+                  <div className="flex gap-1">
+                    {availableMonths.slice(0, 3).map((month) => (
+                      <button
+                        key={month.key}
+                        onClick={() => setSelectedMonth(month.key)}
+                        className={cn(
+                          "rounded-full px-4 py-1.5 text-xs font-semibold transition-all",
+                          activeMonth === month.key
+                            ? "bg-[#11112B] text-white border border-[#3D4BFF]/50 shadow-[0_0_15px_rgba(61,75,255,0.2)]"
+                            : "text-[#8E8E95] hover:text-white border border-transparent"
+                        )}
+                      >
+                        {month.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={() => setSelectedMonth(availableMonths[0]?.key)} className="text-xs font-semibold text-[#8E8E95] hover:text-white transition-colors underline underline-offset-4">
+                  Reset
+                </button>
               </div>
 
-              {/* Platform and Action buttons row */}
               <div className="flex items-center gap-3">
-                  <div className="flex items-center rounded-lg border border-[#1F1F23] bg-[#131316] p-1">
-                     <button
-                       onClick={() => handlePlatformFilterChange("All")}
-                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all", selectedPlatform === "All" ? "bg-[#2A2A32] text-white" : "text-[#8E8E95] hover:text-white")}
-                     >
-                       Semua Platform
-                     </button>
-                     <button
-                       onClick={() => handlePlatformFilterChange("Shopee")}
-                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Shopee" ? "bg-[#EE4D2D]/20 text-[#EE4D2D]" : "text-[#8E8E95] hover:text-white")}
-                     >
-                       Shopee
-                     </button>
-                     <button
-                       onClick={() => handlePlatformFilterChange("TikTok")}
-                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "TikTok" ? "bg-zinc-800 text-white" : "text-[#8E8E95] hover:text-white")}
-                     >
-                       TikTok
-                     </button>
-                     <button
-                       onClick={() => handlePlatformFilterChange("Meta")}
-                       className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Meta" ? "bg-[#1877F2]/20 text-[#1877F2]" : "text-[#8E8E95] hover:text-white")}
-                     >
-                       Meta Ads
-                     </button>
-                  </div>
-                 <button onClick={handleExport} className="rounded-lg bg-white text-black px-4 py-1.5 text-xs font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
-                   <ArrowDownRight className="h-4 w-4" /> Export CSV
-                 </button>
+                <div className="flex items-center rounded-lg border border-[#1F1F23] bg-[#131316] p-1">
+                  <button onClick={() => handlePlatformFilterChange("All")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all", selectedPlatform === "All" ? "bg-[#2A2A32] text-white" : "text-[#8E8E95] hover:text-white")}>
+                    All Channel
+                  </button>
+                  <button onClick={() => handlePlatformFilterChange("Shopee")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Shopee" ? "bg-[#EE4D2D]/20 text-[#EE4D2D]" : "text-[#8E8E95] hover:text-white")}>
+                    Shopee
+                  </button>
+                  <button onClick={() => handlePlatformFilterChange("TikTok")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "TikTok" ? "bg-zinc-800 text-white" : "text-[#8E8E95] hover:text-white")}>
+                    TikTok
+                  </button>
+                  <button onClick={() => handlePlatformFilterChange("Meta")} className={cn("px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5", selectedPlatform === "Meta" ? "bg-[#1877F2]/20 text-[#1877F2]" : "text-[#8E8E95] hover:text-white")}>
+                    Meta Ads
+                  </button>
+                </div>
+                <button onClick={handleExport} className="rounded-lg bg-white text-black px-4 py-1.5 text-xs font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 shadow-[0_0_15px_rgba(255,255,255,0.2)]">
+                  <ArrowDownRight className="h-4 w-4" /> Export CSV
+                </button>
               </div>
             </div>
           </div>
-          
-          {/* TAB 1: OVERVIEW */}
+
+          {/* === TAB RENDERING === */}
+
           {activeTab === "overview" && (
-            <div className="space-y-8 mt-4">
-              {/* Dynamic metric summaries grid */}
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-                {dashboardData.overview.slice(0, 4).map((metric) => (
-                  <MetricCard
-                    key={metric.key}
-                    label={metric.label}
-                    value={metric.value}
-                    growth={metric.growth}
-                    format={metric.format}
-                    icon={getMetricIcon(metric.key)}
-                  />
-                ))}
-              </div>
-
-              {/* Performance Rating Cards Row */}
-              <div className="grid gap-6 md:grid-cols-3">
-                <div className="flex items-center gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-5 shadow-[0_0_15px_rgba(16,185,129,0.05)] transition-all hover:bg-emerald-500/15">
-                  <div className="rounded-full bg-emerald-500/20 p-2">
-                    <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">18 Produk</h3>
-                    <p className="text-sm font-semibold text-emerald-500">Performa Bagus</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-5 shadow-[0_0_15px_rgba(234,179,8,0.05)] transition-all hover:bg-yellow-500/15">
-                  <div className="rounded-full bg-yellow-500/20 p-2">
-                    <AlertTriangle className="h-6 w-6 text-yellow-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">24 Produk</h3>
-                    <p className="text-sm font-semibold text-yellow-500">Performa Sedang</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4 rounded-xl border border-red-500/20 bg-red-500/10 p-5 shadow-[0_0_15px_rgba(239,68,68,0.05)] transition-all hover:bg-red-500/15">
-                  <div className="rounded-full bg-red-500/20 p-2">
-                    <XCircle className="h-6 w-6 text-red-500" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-white">5 Produk</h3>
-                    <p className="text-sm font-semibold text-red-500">Performa Buruk</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* GMV Trend Chart & Platform Share Distribution row */}
-              <div className="grid gap-6 lg:grid-cols-3">
-                {/* Visual curves */}
-                <div className="lg:col-span-2">
-                  <TrendChart
-                    dataPoints={dashboardData.dailyTrends}
-                    platform={selectedPlatform}
-                  />
-                </div>
-
-                {/* ROAS Gauge */}
-                <div className="flex flex-col h-full">
-                  <RoasGauge 
-                    value={dashboardData.ads.summary.roi || 5.4} 
-                    target={10} 
-                    className="h-full rounded-2xl" 
-                  />
-                </div>
-              </div>
-            </div>
+            <OverviewSection
+              dashboardData={dashboardData}
+              selectedPlatform={selectedPlatform}
+              filteredProducts={filteredProducts}
+              setFilteredProducts={setFilteredProducts}
+            />
           )}
 
-          {/* TAB: LABA RUGI */}
-          {activeTab.startsWith("laba-rugi-") && financialData && (
-            <div className="space-y-8 mt-4 text-left">
-              {/* Dynamic metric summaries grid */}
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                <MetricCard
-                  label="Total Pendapatan (GMV)"
-                  value={financialData.gmv}
-                  format="currency"
-                  icon={DollarSign}
-                  description={`Omzet kotor ${selectedPlatform}`}
-                />
-                <MetricCard
-                  label="Total Beban Operasional"
-                  value={financialData.totalExpenses}
-                  format="currency"
-                  icon={Coins}
-                  description="Beban platform + iklan + komisi"
-                />
-                <MetricCard
-                  label="Laba Bersih (Net Profit)"
-                  value={financialData.labaBersih}
-                  format="currency"
-                  icon={TrendingUp}
-                  description={`Margin Laba Bersih: ${financialData.npm.toFixed(1)}%`}
-                  className={cn(
-                    financialData.labaBersih >= 0 
-                      ? "border-emerald-500/20 bg-emerald-500/5 shadow-[0_0_15px_rgba(16,185,129,0.05)]" 
-                      : "border-rose-500/20 bg-rose-500/5 shadow-[0_0_15px_rgba(239,68,68,0.05)]"
-                  )}
-                  renderValue={() => formatCurrency(financialData.labaBersih)}
-                />
-              </div>
-
-              {/* Accounting Sheet and Progressive Visualizer */}
-              <div className="grid gap-6 lg:grid-cols-3">
-                {/* 1. Double Entry P&L Statement */}
-                <div className="lg:col-span-2 rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
-                  <div className="mb-6">
-                    <h3 className="text-lg font-bold text-white">Laporan Laba Rugi Komprehensif</h3>
-                    <p className="text-sm text-[#8E8E95] mt-1">Struktur keuangan P&L detail berdasarkan aktivitas penjualan</p>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {/* Header Row */}
-                    <div className="flex justify-between border-b border-[#1F1F23] pb-2 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">
-                      <span>Kategori Akun</span>
-                      <span>Nilai (IDR)</span>
-                    </div>
-
-                    {/* Pendapatan Penjualan */}
-                    <div className="flex justify-between py-1 text-sm font-semibold text-white">
-                      <span>Pendapatan Penjualan Kotor (GMV)</span>
-                      <span>{formatCurrency(financialData.gmv)}</span>
-                    </div>
-
-                    {/* HPP */}
-                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] border-b border-[#1F1F23] pb-3">
-                      <span className="pl-4">Harga Pokok Penjualan (HPP) / COGS (45%)</span>
-                      <span>({formatCurrency(financialData.hpp)})</span>
-                    </div>
-
-                    {/* Laba Kotor */}
-                    <div className="flex justify-between py-2 text-sm font-bold text-emerald-400 bg-emerald-500/5 px-3 rounded-lg">
-                      <span>LABA KOTOR (GROSS PROFIT)</span>
-                      <span>{formatCurrency(financialData.labaKotor)}</span>
-                    </div>
-
-                    {/* Beban Operasional Header */}
-                    <div className="pt-2 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">
-                      <span>Beban Operasional:</span>
-                    </div>
-
-                    {/* Platform Fee */}
-                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] pl-4">
-                      <span>Biaya Layanan Platform ({(financialData.platformFeeRate * 100).toFixed(1)}%)</span>
-                      <span>({formatCurrency(financialData.platformFee)})</span>
-                    </div>
-
-                    {/* Ad Spend */}
-                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] pl-4">
-                      <span>Biaya Iklan (Direct Ad Spend)</span>
-                      <span>({formatCurrency(financialData.adSpend)})</span>
-                    </div>
-
-                    {/* Affiliate Commission */}
-                    <div className="flex justify-between py-1 text-sm text-[#8E8E95] pl-4 border-b border-[#1F1F23] pb-3">
-                      <span>Komisi Afiliasi Kreator (Est. 8%)</span>
-                      <span>({formatCurrency(financialData.affiliateCommission)})</span>
-                    </div>
-
-                    {/* Total Beban Operasional */}
-                    <div className="flex justify-between py-2 text-sm font-semibold text-white px-3">
-                      <span>Total Beban Operasional</span>
-                      <span>({formatCurrency(financialData.totalExpenses)})</span>
-                    </div>
-
-                    {/* Laba Bersih */}
-                    <div className="flex justify-between py-3 text-base font-bold text-white bg-[#11112B] border border-[#3D4BFF]/30 px-3 rounded-lg shadow-[0_0_15px_rgba(61,75,255,0.1)]">
-                      <span>LABA BERSIH (NET PROFIT)</span>
-                      <span className={financialData.labaBersih >= 0 ? "text-emerald-400" : "text-rose-450"}>
-                        {formatCurrency(financialData.labaBersih)}
-                      </span>
-                    </div>
-
-                    {/* NPM Ratio */}
-                    <div className="flex justify-between py-1 text-xs font-semibold text-[#8E8E95] px-3">
-                      <span>Margin Laba Bersih (NPM)</span>
-                      <span className={financialData.labaBersih >= 0 ? "text-emerald-400 font-bold" : "text-rose-450 font-bold"}>
-                        {financialData.npm.toFixed(2)}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Visual Expense progressive visualizer */}
-                <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">Struktur Alokasi Pendapatan</h3>
-                    <p className="text-sm text-[#8E8E95] mt-1">Representasi pembagian GMV terhadap biaya dan profitabilitas</p>
-
-                    {/* Horizontal Segmented Bar */}
-                    <div className="mt-6 space-y-2">
-                      <div className="h-4 w-full rounded-full overflow-hidden flex bg-zinc-800">
-                        {/* HPP/COGS Segment (45%) */}
-                        <div 
-                          style={{ width: '45%' }} 
-                          className="h-full bg-orange-500/80" 
-                          title="HPP: 45%"
-                        />
-                        {/* Platform Fee Segment */}
-                        {financialData.gmv > 0 && financialData.platformFee > 0 && (
-                          <div 
-                            style={{ width: `${(financialData.platformFee / financialData.gmv) * 100}%` }} 
-                            className="h-full bg-blue-500/80" 
-                            title={`Platform Fee: ${((financialData.platformFee / financialData.gmv) * 100).toFixed(1)}%`}
-                          />
-                        )}
-                        {/* Ad Spend Segment */}
-                        {financialData.gmv > 0 && financialData.adSpend > 0 && (
-                          <div 
-                            style={{ width: `${(financialData.adSpend / financialData.gmv) * 100}%` }} 
-                            className="h-full bg-rose-500/80" 
-                            title={`Ad Spend: ${((financialData.adSpend / financialData.gmv) * 100).toFixed(1)}%`}
-                          />
-                        )}
-                        {/* Affiliate Commission Segment */}
-                        {financialData.gmv > 0 && financialData.affiliateCommission > 0 && (
-                          <div 
-                            style={{ width: `${(financialData.affiliateCommission / financialData.gmv) * 100}%` }} 
-                            className="h-full bg-violet-500/80" 
-                            title={`Affiliate: ${((financialData.affiliateCommission / financialData.gmv) * 100).toFixed(1)}%`}
-                          />
-                        )}
-                        {/* Net Profit Segment */}
-                        {financialData.gmv > 0 && financialData.labaBersih > 0 && (
-                          <div 
-                            style={{ width: `${financialData.npm}%` }} 
-                            className="h-full bg-emerald-500/80" 
-                            title={`Laba Bersih: ${financialData.npm.toFixed(1)}%`}
-                          />
-                        )}
-                      </div>
-
-                      {/* Legend Grid */}
-                      <div className="grid grid-cols-2 gap-3 pt-4 text-xs font-medium">
-                        <div className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded bg-orange-500/80" />
-                          <span className="text-[#8E8E95]">HPP / COGS (45%)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded bg-blue-500/80" />
-                          <span className="text-[#8E8E95]">Platform Fee ({(financialData.platformFeeRate * 100).toFixed(1)}%)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded bg-rose-500/80" />
-                          <span className="text-[#8E8E95]">Ad Spend ({financialData.gmv > 0 ? ((financialData.adSpend / financialData.gmv) * 100).toFixed(1) : 0}%)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="h-3 w-3 rounded bg-violet-500/80" />
-                          <span className="text-[#8E8E95]">Affiliate ({financialData.gmv > 0 ? ((financialData.affiliateCommission / financialData.gmv) * 100).toFixed(1) : 0}%)</span>
-                        </div>
-                        <div className="flex items-center gap-2 col-span-2 border-t border-[#1F1F23] pt-2 mt-1">
-                          <div className="h-3 w-3 rounded bg-emerald-500/80" />
-                          <span className="text-white font-bold">Laba Bersih / NPM ({financialData.npm.toFixed(1)}%)</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Individual breakdown progressive bars */}
-                  <div className="mt-8 space-y-4">
-                    <h4 className="text-xs font-bold text-white uppercase tracking-wider text-left">Alokasi Biaya Terperinci</h4>
-                    
-                    {/* HPP Bar */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs font-medium">
-                        <span className="text-[#8E8E95]">Harga Pokok Penjualan (HPP)</span>
-                        <span className="text-white">45.0%</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-zinc-800">
-                        <div className="h-full rounded-full bg-gradient-to-r from-orange-600 to-orange-400" style={{ width: '45%' }} />
-                      </div>
-                    </div>
-
-                    {/* Platform Fee Bar */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs font-medium">
-                        <span className="text-[#8E8E95]">Marketplace Fee</span>
-                        <span className="text-white">{financialData.gmv > 0 ? ((financialData.platformFee / financialData.gmv) * 100).toFixed(1) : 0}%</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-zinc-800">
-                        <div className="h-full rounded-full bg-gradient-to-r from-blue-600 to-blue-400" style={{ width: `${financialData.gmv > 0 ? (financialData.platformFee / financialData.gmv) * 100 : 0}%` }} />
-                      </div>
-                    </div>
-
-                    {/* Ad Spend Bar */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs font-medium">
-                        <span className="text-[#8E8E95]">Ads Budget (CPAS / CPC)</span>
-                        <span className="text-white">{financialData.gmv > 0 ? ((financialData.adSpend / financialData.gmv) * 100).toFixed(1) : 0}%</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-zinc-800">
-                        <div className="h-full rounded-full bg-gradient-to-r from-rose-600 to-rose-400" style={{ width: `${financialData.gmv > 0 ? (financialData.adSpend / financialData.gmv) * 100 : 0}%` }} />
-                      </div>
-                    </div>
-
-                    {/* Affiliate Bar */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs font-medium">
-                        <span className="text-[#8E8E95]">Affiliate Commission</span>
-                        <span className="text-white">{financialData.gmv > 0 ? ((financialData.affiliateCommission / financialData.gmv) * 100).toFixed(1) : 0}%</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-zinc-800">
-                        <div className="h-full rounded-full bg-gradient-to-r from-violet-600 to-violet-400" style={{ width: `${financialData.gmv > 0 ? (financialData.affiliateCommission / financialData.gmv) * 100 : 0}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+          {activeTab === "product-performance" && (
+            <ProductPerformance
+              dashboardData={dashboardData}
+              selectedPlatform={selectedPlatform}
+              filteredProducts={filteredProducts}
+              setFilteredProducts={setFilteredProducts}
+            />
           )}
 
-          {/* TAB: KOMISI */}
-          {activeTab.startsWith("komisi-") && financialData && (
-            <div className="space-y-8 mt-4 text-left">
-              {/* Dynamic metric summaries grid */}
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                <MetricCard
-                  label="Total Pengeluaran Komisi"
-                  value={financialData.affiliateCommission}
-                  format="currency"
-                  icon={Coins}
-                  description="Estimasi 8% komisi kreator afiliasi"
-                />
-                <MetricCard
-                  label="GMV Melalui Afiliasi"
-                  value={financialData.affiliateGmv}
-                  format="currency"
-                  icon={DollarSign}
-                  description={`Porsi: ${financialData.gmv > 0 ? ((financialData.affiliateGmv / financialData.gmv) * 100).toFixed(1) : 0}% dari total GMV`}
-                />
-                <MetricCard
-                  label="Direct Sales GMV (Non-Afiliasi)"
-                  value={financialData.directGmv}
-                  format="currency"
-                  icon={Store}
-                  description={`Porsi: ${financialData.gmv > 0 ? ((financialData.directGmv / financialData.gmv) * 100).toFixed(1) : 0}% dari total GMV`}
-                />
-              </div>
+          {activeTab === "tiktok-overview" && <TikTokOverview dashboardData={dashboardData} />}
+          {activeTab === "tiktok-product" && <TikTokProductAnalyz dashboardData={dashboardData} />}
+          {activeTab === "tiktok-channel" && <TikTokChannelAnalyz dashboardData={dashboardData} />}
+          {activeTab === "tiktok-affiliate" && <TikTokAffiliateAnalyz dashboardData={dashboardData} />}
 
-              {/* Visual Breakdown and Top Creator Leaderboard */}
-              <div className="grid gap-6 lg:grid-cols-3">
-                
-                {/* Direct vs Affiliate Sales progress block */}
-                <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-white">Saluran Kontribusi GMV</h3>
-                    <p className="text-sm text-[#8E8E95] mt-1">Perbandingan antara penjualan langsung (Direct) vs pemasaran kreator afiliasi</p>
-                    
-                    <div className="mt-8 space-y-6">
-                      {/* Direct GMV */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-baseline">
-                          <span className="text-sm font-semibold text-white">Direct Sales</span>
-                          <span className="text-xs text-[#8E8E95]">
-                            {financialData.gmv > 0 ? ((financialData.directGmv / financialData.gmv) * 100).toFixed(1) : 0}%
-                          </span>
-                        </div>
-                        <div className="text-lg font-bold text-[#3D4BFF]">{formatCurrency(financialData.directGmv)}</div>
-                        <div className="h-2.5 w-full rounded-full bg-zinc-800 overflow-hidden">
-                          <div 
-                            className="h-full rounded-full bg-gradient-to-r from-[#3D4BFF] to-[#6c79ff]" 
-                            style={{ width: `${financialData.gmv > 0 ? (financialData.directGmv / financialData.gmv) * 100 : 0}%` }} 
-                          />
-                        </div>
-                      </div>
+          {activeTab === "shopee-overview" && <ShopeeOverview dashboardData={dashboardData} />}
+          {activeTab === "shopee-product" && <ShopeeProductAnalyz dashboardData={dashboardData} />}
+          {activeTab === "shopee-channel" && <ShopeeChannelAnalyz dashboardData={dashboardData} />}
+          {activeTab === "shopee-affiliate" && <ShopeeAffiliateAnalyz dashboardData={dashboardData} />}
 
-                      {/* Affiliate GMV */}
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-baseline">
-                          <span className="text-sm font-semibold text-white">Affiliate Marketing</span>
-                          <span className="text-xs text-[#8E8E95]">
-                            {financialData.gmv > 0 ? ((financialData.affiliateGmv / financialData.gmv) * 100).toFixed(1) : 0}%
-                          </span>
-                        </div>
-                        <div className="text-lg font-bold text-violet-400">{formatCurrency(financialData.affiliateGmv)}</div>
-                        <div className="h-2.5 w-full rounded-full bg-zinc-800 overflow-hidden">
-                          <div 
-                            className="h-full rounded-full bg-gradient-to-r from-violet-600 to-violet-400" 
-                            style={{ width: `${financialData.gmv > 0 ? (financialData.affiliateGmv / financialData.gmv) * 100 : 0}%` }} 
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-8 border-t border-[#1F1F23] pt-4 text-xs text-[#8E8E95] text-left leading-relaxed">
-                    Pemasaran afiliasi mengandalkan program komisi (model 8%) untuk live streamer dan pembuat video TikTok. Direct sales dikembangkan melalui organic campaign dan direct advertisement.
-                  </div>
-                </div>
-
-                {/* Top Affiliate Creators Leaderboard */}
-                <div className="lg:col-span-2 rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
-                  <div className="mb-6 flex justify-between items-center">
-                    <div>
-                      <h3 className="text-lg font-bold text-white">Top Affiliate Creators</h3>
-                      <p className="text-sm text-[#8E8E95] mt-1">Kreator dengan performa kontribusi GMV teratas bulan ini</p>
-                    </div>
-                    <span className="inline-flex items-center rounded-full bg-[#11112B] border border-[#3D4BFF]/20 px-3 py-1 text-xs font-bold text-violet-400">
-                      Live & Video
-                    </span>
-                  </div>
-
-                  {financialData.topAffiliates.length === 0 ? (
-                    <div className="py-12 text-center text-sm text-[#8E8E95]">
-                      Tidak ada data kreator afiliasi terdeteksi untuk periode ini.
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto custom-scrollbar">
-                      <table className="w-full text-left border-collapse text-sm">
-                        <thead>
-                          <tr className="border-b border-[#1F1F23] text-[#8E8E95] font-bold text-xs uppercase tracking-wider">
-                            <th className="py-3 px-3">Peringkat & Nama</th>
-                            <th className="py-3 px-3">Sumber Saluran</th>
-                            <th className="py-3 px-3 text-right">GMV Teratribusi</th>
-                            <th className="py-3 px-3 text-right">Produk Terjual</th>
-                            <th className="py-3 px-3 text-right">Total Views</th>
-                            <th className="py-3 px-3 text-right text-violet-400">Estimasi Komisi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#1F1F23] text-zinc-300">
-                          {financialData.topAffiliates.map((item, index) => (
-                            <tr key={item.creator} className="hover:bg-[#1C1C21]/30 transition-colors group">
-                              <td className="py-3.5 px-3 flex items-center gap-3 text-left">
-                                <span className={cn(
-                                  "flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold shrink-0",
-                                  index === 0 ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
-                                  index === 1 ? "bg-zinc-400/20 text-zinc-300 border border-zinc-400/30" :
-                                  index === 2 ? "bg-amber-700/20 text-amber-600 border border-amber-700/30" :
-                                  "bg-zinc-800 text-zinc-400"
-                                )}>
-                                  {index + 1}
-                                </span>
-                                <div className="text-left">
-                                  <span className="font-semibold text-white group-hover:text-violet-400 transition-colors">
-                                    @{item.creator}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="py-3.5 px-3 text-left">
-                                <span className={cn(
-                                  "inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                                  item.source === "LIVE" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
-                                  item.source === "Video" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                                  "bg-violet-500/10 text-violet-400 border border-violet-500/20"
-                                )}>
-                                  {item.source}
-                                </span>
-                              </td>
-                              <td className="py-3.5 px-3 text-right font-semibold text-white">
-                                {formatCurrency(item.gmv)}
-                              </td>
-                              <td className="py-3.5 px-3 text-right font-mono text-xs">
-                                {formatNumber(item.orders)} unit
-                              </td>
-                              <td className="py-3.5 px-3 text-right font-mono text-xs text-[#8E8E95]">
-                                {formatNumber(item.views)}
-                              </td>
-                              <td className="py-3.5 px-3 text-right font-bold text-violet-400">
-                                {formatCurrency(item.estimatedCommission)}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 2: PRODUCTS */}
-          {(activeTab === "products" || activeTab.startsWith("products-")) && (
-            <div className="space-y-6">
-              {/* Product top stats metrics */}
-              <div className="grid gap-6 sm:grid-cols-3">
-                <MetricCard
-                  label="Unique Products Catalog"
-                  value={dashboardData.products.length}
-                  format="number"
-                  icon={ShoppingBag}
-                  description="Active on selected filters"
-                />
-                <MetricCard
-                  label="Top Selling Revenue"
-                  value={dashboardData.products[0]?.platformGmv || 0}
-                  format="currency"
-                  icon={Award}
-                  description={
-                    dashboardData.products[0]?.name
-                      ? `"${dashboardData.products[0].name.substring(0, 15)}..."`
-                      : "-"
-                  }
-                />
-                <MetricCard
-                  label="Total Sold units"
-                  value={dashboardData.products.reduce((acc, p) => acc + p.platformItemsSold, 0)}
-                  format="number"
-                  icon={Store}
-                  description="Consolidated items sold"
-                />
-              </div>
-
-              {/* Products Table */}
-              <DataTable
-                columns={productColumns}
-                data={dashboardData.products}
-                searchFields={["name"]}
-                searchPlaceholder="Cari nama produk (Regex support)..."
-                defaultSort={{ key: "platformGmv", direction: "desc" }}
-                onFilteredDataChange={setFilteredProducts}
-              />
-            </div>
-          )}
-
-          {/* TAB 3: LIVE STREAMS */}
-          {activeTab === "lives" && (
-            <div className="space-y-6">
-              {selectedPlatform === "Shopee" ? (
-                <div className="flex flex-col items-center justify-center p-12 border border-dashed border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/40 rounded-2xl">
-                  <Tv className="h-10 w-10 text-zinc-300 mb-3" />
-                  <h4 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">Shopee Lives Unavailable</h4>
-                  <p className="text-xs text-zinc-400 mt-1 max-w-sm text-center">
-                    Shopee Live data spreadsheets were not included in the raw sheets. Switch platform to TikTok or All to view Live host performance.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Lives Metrics */}
-                  <div className="grid gap-6 sm:grid-cols-4">
-                    <MetricCard
-                      label="Total Live Streams"
-                      value={dashboardData.lives.length}
-                      format="number"
-                      icon={Tv}
-                      description="Unique streams recorded"
-                    />
-                    <MetricCard
-                      label="Live Attributed GMV"
-                      value={dashboardData.lives.reduce((acc, l) => acc + l.gmv, 0)}
-                      format="currency"
-                      icon={DollarSign}
-                    />
-                    <MetricCard
-                      label="Best Live Host"
-                      value={dashboardData.lives[0]?.gmv || 0}
-                      format="currency"
-                      icon={Award}
-                      description={dashboardData.lives[0]?.creator_name ? `@${dashboardData.lives[0].creator_name}` : "-"}
-                    />
-                    <MetricCard
-                      label="Average Stream CTR"
-                      value={
-                        dashboardData.lives.length > 0
-                          ? dashboardData.lives.reduce((acc, l) => acc + l.ctr, 0) / dashboardData.lives.length
-                          : 0
-                      }
-                      format="percent"
-                      icon={Percent}
-                      description="Direct product click conversion"
-                    />
-                  </div>
-
-                  {/* Lives Table */}
-                  <DataTable
-                    columns={liveColumns}
-                    data={dashboardData.lives}
-                    searchFields={["creator", "creator_name"]}
-                    searchPlaceholder="Cari nickname host (Regex support)..."
-                    defaultSort={{ key: "gmv", direction: "desc" }}
-                    onFilteredDataChange={setFilteredLives}
-                  />
-                </>
-              )}
-            </div>
-          )}
-
-          {/* TAB 4: VIDEOS */}
-          {activeTab === "videos" && (
-            <div className="space-y-6">
-              {selectedPlatform === "Shopee" ? (
-                <div className="flex flex-col items-center justify-center p-12 border border-dashed border-[#1F1F23] bg-[#131316] rounded-2xl">
-                  <Play className="h-10 w-10 text-[#8E8E95] mb-3" />
-                  <h4 className="text-sm font-semibold text-white">Shopee Videos Unavailable</h4>
-                  <p className="text-xs text-[#8E8E95] mt-1 max-w-sm text-center">
-                    Shopee Video content spreadsheets were not included in the raw sheets. Switch platform to TikTok or All to view Video creator performance.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  {/* Videos Metrics */}
-                  <div className="grid gap-6 sm:grid-cols-4">
-                    <MetricCard
-                      label="Short Videos Items"
-                      value={dashboardData.videos.length}
-                      format="number"
-                      icon={Play}
-                      description="Unique items tracked"
-                    />
-                    <MetricCard
-                      label="Video Attributed GMV"
-                      value={dashboardData.videos.reduce((acc, v) => acc + v.gmv, 0)}
-                      format="currency"
-                      icon={DollarSign}
-                    />
-                    <MetricCard
-                      label="Total Video Views"
-                      value={dashboardData.videos.reduce((acc, v) => acc + v.views, 0)}
-                      format="number"
-                      icon={Eye}
-                      description="Cumulative video playbacks"
-                    />
-                    <MetricCard
-                      label="Video Engagement (Likes)"
-                      value={dashboardData.videos.reduce((acc, v) => acc + v.likes, 0)}
-                      format="number"
-                      icon={Heart}
-                      description="Total audience feedback"
-                    />
-                  </div>
-
-                  {/* Videos Table */}
-                  <div className="rounded-2xl border border-[#1F1F23] bg-[#131316] p-6 shadow-sm">
-                    <div className="mb-6 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-lg font-bold text-white">Video Database</h3>
-                        <p className="text-sm text-[#8E8E95]">Daftar performa per video konten</p>
-                      </div>
-                    </div>
-                    <DataTable
-                      columns={videoColumns}
-                      data={dashboardData.videos}
-                      searchFields={["creator", "title"]}
-                      searchPlaceholder="Cari judul video atau creator (Regex support)..."
-                      defaultSort={{ key: "gmv", direction: "desc" }}
-                      onFilteredDataChange={setFilteredVideos}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* TAB 8: AI INSIGHT */}
-          {activeTab === "ai-insight" && (
-            <AIInsight videos={dashboardData.videos} />
-          )}
-
-          {/* TAB 5: ADS CAMPAIGN */}
-          {activeTab === "ads" && (
-            <div className="space-y-6">
-              {/* Campaign High level KPI cards */}
-              <div className="grid gap-6 sm:grid-cols-4">
-                <MetricCard
-                  label="Total Ad Spend"
-                  value={dashboardData.ads.summary.cost}
-                  format="currency"
-                  icon={Coins}
-                  description="Paid traffic expenses"
-                />
-                <MetricCard
-                  label="Total Ad GMV"
-                  value={dashboardData.ads.summary.gmv}
-                  format="currency"
-                  icon={DollarSign}
-                  description="Paid traffic revenue attribution"
-                />
-                <MetricCard
-                  label="Consolidated ROI / ROAS"
-                  value={dashboardData.ads.summary.roi}
-                  format="number"
-                  icon={TrendingUp}
-                  description="Rev / Spend efficiency ratio"
-                  className="border-rose-300 dark:border-rose-950 shadow-rose-100/50"
-                  renderValue={() => `${dashboardData.ads.summary.roi.toFixed(2)}x`}
-                />
-                <MetricCard
-                  label="Attributed Orders"
-                  value={dashboardData.ads.summary.orders}
-                  format="number"
-                  icon={ShoppingBag}
-                  description="Completed ad acquisitions"
-                />
-              </div>
-
-              {/* Dynamic Stacked Ad Campaign lists based on active platform */}
-              
-              {/* 5A. Shopee CPC Ads list */}
-              {(selectedPlatform === "Shopee" || selectedPlatform === "All") && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                    <div className="h-2 w-2 rounded-full bg-[#ee4d2d]" />
-                    <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">Shopee CPC Ads Campaign</h3>
-                  </div>
-
-                  {dashboardData.ads.shopee.length === 0 ? (
-                    <p className="text-sm text-zinc-400 py-4">Tidak ada data iklan Shopee untuk bulan ini.</p>
-                  ) : (
-                    <DataTable
-                      columns={shopeeAdColumns}
-                      data={dashboardData.ads.shopee}
-                      searchFields={["ad_name"]}
-                      searchPlaceholder="Cari nama iklan Shopee..."
-                      defaultSort={{ key: "cost", direction: "desc" }}
-                      onFilteredDataChange={setFilteredShopeeAds}
-                    />
-                  )}
-                </div>
-              )}
-
-              {/* 5B. TikTok GMV Max Ads lists */}
-              {(selectedPlatform === "TikTok" || selectedPlatform === "All") && (
-                <div className="space-y-8 pt-4">
-                  
-                  {/* LIVE ADS */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                      <div className="h-2 w-2 rounded-full bg-zinc-950 dark:bg-white" />
-                      <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">TikTok GMV Max Live Campaign</h3>
-                    </div>
-
-                    {dashboardData.ads.tiktokLive.length === 0 ? (
-                      <p className="text-sm text-zinc-400 py-4">Tidak ada data iklan LIVE TikTok untuk bulan ini.</p>
-                    ) : (
-                      <DataTable
-                        columns={tiktokLiveAdColumns}
-                        data={dashboardData.ads.tiktokLive}
-                        searchFields={["campaign_name"]}
-                        searchPlaceholder="Cari campaign LIVE TikTok..."
-                        defaultSort={{ key: "cost", direction: "desc" }}
-                        onFilteredDataChange={setFilteredTiktokLiveAds}
-                      />
-                    )}
-                  </div>
-
-                  {/* PRODUCT ADS */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 border-b border-zinc-200 dark:border-zinc-800 pb-2">
-                      <div className="h-2 w-2 rounded-full bg-zinc-950 dark:bg-white" />
-                      <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-50">TikTok GMV Max Product Campaign</h3>
-                    </div>
-
-                    {dashboardData.ads.tiktokProduct.length === 0 ? (
-                      <p className="text-sm text-zinc-400 py-4">Tidak ada data iklan produk TikTok untuk bulan ini.</p>
-                    ) : (
-                      <DataTable
-                        columns={tiktokProductAdColumns}
-                        data={dashboardData.ads.tiktokProduct}
-                        searchFields={["campaign_name"]}
-                        searchPlaceholder="Cari campaign produk TikTok..."
-                        defaultSort={{ key: "cost", direction: "desc" }}
-                        onFilteredDataChange={setFilteredTiktokProductAds}
-                      />
-                    )}
-                  </div>
-
-                </div>
-              )}
-
-            </div>
-          )}
+          {activeTab === "website" && <WebsiteOverview />}
+          {activeTab === "meta-ads" && <MetaAdsPerformance />}
 
         </main>
       </div>

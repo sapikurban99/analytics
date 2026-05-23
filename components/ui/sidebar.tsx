@@ -4,12 +4,21 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
-  Activity,
-  DollarSign,
+  LayoutDashboard,
   ChevronDown,
   ChevronRight,
-  Sparkles,
-  Lock
+  BarChart3,
+  Globe,
+  Lock,
+  ShoppingBag,
+  Tv,
+  Store,
+  Play,
+  Users,
+  LineChart,
+  DollarSign,
+  Megaphone,
+  PieChart,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -18,80 +27,102 @@ interface SidebarProps {
   className?: string;
 }
 
+interface NavItemProps {
+  id: string;
+  label: string;
+  icon?: React.ReactNode;
+  isNested?: boolean;
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+}
+
+const NavItem = ({
+  id,
+  label,
+  icon,
+  isNested = false,
+  activeTab,
+  setActiveTab,
+}: NavItemProps) => {
+  const isActive = activeTab === id;
+  return (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={cn(
+        "group flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm transition-all duration-200 relative",
+        isActive
+          ? "bg-[#11112B] text-white font-semibold"
+          : "text-[#8E8E95] hover:text-[#F4F4F6]"
+      )}
+    >
+      <div className="flex items-center gap-3 pl-2 w-full">
+        {icon && <span className="shrink-0">{icon}</span>}
+        <div className={cn(
+          "h-1.5 w-1.5 rounded-full transition-colors shrink-0",
+          isActive ? "bg-[#3D4BFF]" : "bg-[#2A2A32] group-hover:bg-[#4A4A52]"
+        )} />
+        <span className="truncate">{label}</span>
+      </div>
+    </button>
+  );
+};
+
+const ChannelIcon = ({ platform }: { platform: string }) => {
+  if (platform === "tiktok") {
+    return (
+      <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-black text-white border border-[#333]">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+        </svg>
+      </div>
+    );
+  }
+  if (platform === "shopee") {
+    return (
+      <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-[#EE4D2D] text-[10px] font-bold text-white">
+        S
+      </div>
+    );
+  }
+  if (platform === "website") {
+    return (
+      <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-emerald-600 text-[10px] font-bold text-white">
+        W
+      </div>
+    );
+  }
+  if (platform === "meta") {
+    return (
+      <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-[#1877F2] text-[10px] font-bold text-white">
+        M
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function Sidebar({ activeTab, setActiveTab, className }: SidebarProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    "gmv-max": true,
-    "finance": true,
-    "shopee": true,
-    "tiktok": false,
-    "meta": false,
+    "overview-section": true,
+    "channel-section": true,
+    "tiktok-section": true,
+    "shopee-section": true,
   });
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-  const NavItem = ({ 
-    id, 
-    label, 
-    isNested = false, 
-    isAction = false, 
-    actionColor
-  }: { 
-    id: string, 
-    label: string, 
-    isNested?: boolean,
-    isAction?: boolean,
-    actionColor?: "cyan" | "pink"
-  }) => {
-    const isActive = activeTab === id;
-    
-    if (isAction) {
-      return (
-        <button
-          onClick={() => setActiveTab(id)}
-          className={cn(
-            "group flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 my-1.5",
-            actionColor === "cyan" 
-              ? "border border-cyan-500/30 bg-cyan-950/10 text-zinc-300 hover:text-white" 
-              : "border border-pink-500/30 bg-pink-950/10 text-zinc-300 hover:text-white"
-          )}
-        >
-          <div className="flex items-center gap-2">
-            <div className={cn(
-              "h-1.5 w-1.5 rounded-full",
-              actionColor === "cyan" ? "bg-cyan-500" : "bg-pink-500"
-            )} />
-            <span>{label}</span>
-          </div>
-          <Sparkles className={cn(
-            "h-4 w-4",
-            actionColor === "cyan" ? "text-cyan-500" : "text-pink-500"
-          )} />
-        </button>
-      );
-    }
-
-    return (
-      <button
-        onClick={() => setActiveTab(id)}
-        className={cn(
-          "group flex w-full items-center gap-3 rounded-lg px-4 py-2 text-sm transition-all duration-200 relative",
-          isActive
-            ? "bg-[#11112B] text-white font-semibold" // Active state (blue-ish dark background)
-            : "text-[#8E8E95] hover:text-[#F4F4F6]"
-        )}
-      >
-        <div className="flex items-center gap-3 pl-2 w-full">
-          <div className={cn(
-            "h-1.5 w-1.5 rounded-full transition-colors",
-            isActive ? "bg-[#3D4BFF]" : "bg-[#2A2A32] group-hover:bg-[#4A4A52]" // Dot indicator
-          )} />
-          <span className="truncate">{label}</span>
-        </div>
-      </button>
-    );
-  };
+  const renderNavItem = (id: string, label: string, icon?: React.ReactNode, isNested = false) => (
+    <NavItem
+      id={id}
+      label={label}
+      icon={icon}
+      isNested={isNested}
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+    />
+  );
 
   return (
     <aside
@@ -105,124 +136,115 @@ export default function Sidebar({ activeTab, setActiveTab, className }: SidebarP
         <div className="flex items-center gap-2 overflow-hidden">
           <div className="h-2 w-2 rounded-full bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]" />
           <span className="text-sm font-bold tracking-tight text-white whitespace-nowrap">
-            Channel Analytics Dashboard
+            Omnichannel Dashboard
           </span>
         </div>
       </div>
 
       {/* Navigation Links */}
       <nav className="flex-1 space-y-4 px-3 py-4 overflow-y-auto custom-scrollbar">
-        
-        {/* GMV MAX Section */}
+
+        {/* Main Navigation 1: Overview */}
         <div>
-          <button 
-            onClick={() => toggleSection("gmv-max")}
+          <button
+            onClick={() => toggleSection("overview-section")}
             className="flex w-full items-center justify-between px-2 py-2 text-sm font-bold text-[#F4F4F6] hover:text-white"
           >
             <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-[#8E8E95]" />
-              <span>GMV MAX</span>
+              <BarChart3 className="h-4 w-4 text-[#8E8E95]" />
+              <span>Overview</span>
             </div>
-            {openSections["gmv-max"] ? <ChevronDown className="h-4 w-4 text-[#8E8E95]" /> : <ChevronRight className="h-4 w-4 text-[#8E8E95]" />}
+            {openSections["overview-section"] ? <ChevronDown className="h-4 w-4 text-[#8E8E95]" /> : <ChevronRight className="h-4 w-4 text-[#8E8E95]" />}
           </button>
-          
-          {openSections["gmv-max"] && (
+
+          {openSections["overview-section"] && (
             <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-4 pl-1">
-              <NavItem id="overview" label="Dashboard" />
-              <NavItem id="videos" label="Video Overview" />
-              <NavItem id="video-check" label="Video Check" />
-              <NavItem id="ai-insight" label="AI Insight" />
-              <div className="pr-2 pl-1 mt-2">
-                <NavItem id="action-plan" label="Action Plan" isAction actionColor="cyan" />
-                <NavItem id="winning-framework" label="Winning Framework" isAction actionColor="pink" />
-              </div>
+              <NavItem
+                id="overview"
+                label="Performance Sales Summary Multi-Channel"
+                icon={<LayoutDashboard className="h-3.5 w-3.5 text-[#8E8E95]" />}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+              />
+              <NavItem
+                id="product-performance"
+                label="Product Performance"
+                icon={<ShoppingBag className="h-3.5 w-3.5 text-[#8E8E95]" />}
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+              />
             </div>
           )}
         </div>
 
-        {/* Finance Section */}
+        {/* Main Navigation 2: Channel */}
         <div>
-          <button 
-            onClick={() => toggleSection("finance")}
+          <button
+            onClick={() => toggleSection("channel-section")}
             className="flex w-full items-center justify-between px-2 py-2 text-sm font-bold text-[#F4F4F6] hover:text-white"
           >
             <div className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-[#8E8E95]" />
-              <span>Finance</span>
+              <Globe className="h-4 w-4 text-[#8E8E95]" />
+              <span>Channel</span>
             </div>
-            {openSections["finance"] ? <ChevronDown className="h-4 w-4 text-[#8E8E95]" /> : <ChevronRight className="h-4 w-4 text-[#8E8E95]" />}
+            {openSections["channel-section"] ? <ChevronDown className="h-4 w-4 text-[#8E8E95]" /> : <ChevronRight className="h-4 w-4 text-[#8E8E95]" />}
           </button>
-          
-          {openSections["finance"] && (
+
+          {openSections["channel-section"] && (
             <div className="mt-1 space-y-1 ml-4 border-l border-[#1F1F23] pl-2">
-              
-              {/* Shopee Sub-group */}
-              <div>
-                <button 
-                  onClick={() => toggleSection("shopee")}
-                  className="flex w-full items-center justify-between py-2 text-sm font-semibold text-[#F4F4F6] hover:text-white"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-[#EE4D2D] text-[10px] font-bold text-white">
-                      S
-                    </div>
-                    <span>Shopee</span>
-                  </div>
-                  {openSections["shopee"] ? <ChevronDown className="h-3 w-3 text-[#8E8E95]" /> : <ChevronRight className="h-3 w-3 text-[#8E8E95]" />}
-                </button>
-                {openSections["shopee"] && (
-                  <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-2 pl-1">
-                    <NavItem id="komisi-shopee" label="Komisi Shopee" isNested />
-                    <NavItem id="laba-rugi-shopee" label="Laba Rugi" isNested />
-                    <NavItem id="products-shopee" label="Analisa Produk" isNested />
-                  </div>
-                )}
-              </div>
 
               {/* TikTok Shop Sub-group */}
-              <div className="mt-2">
-                <button 
-                  onClick={() => toggleSection("tiktok")}
+              <div>
+                <button
+                  onClick={() => toggleSection("tiktok-section")}
                   className="flex w-full items-center justify-between py-2 text-sm font-semibold text-[#F4F4F6] hover:text-white"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-black text-white border border-[#333]">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>
-                    </div>
+                    <ChannelIcon platform="tiktok" />
                     <span>TikTok Shop</span>
                   </div>
-                  {openSections["tiktok"] ? <ChevronDown className="h-3 w-3 text-[#8E8E95]" /> : <ChevronRight className="h-3 w-3 text-[#8E8E95]" />}
+                  {openSections["tiktok-section"] ? <ChevronDown className="h-3 w-3 text-[#8E8E95]" /> : <ChevronRight className="h-3 w-3 text-[#8E8E95]" />}
                 </button>
-                {openSections["tiktok"] && (
+                {openSections["tiktok-section"] && (
                   <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-2 pl-1">
-                    <NavItem id="komisi-tiktok" label="Komisi TikTok" isNested />
-                    <NavItem id="laba-rugi-tiktok" label="Laba Rugi" isNested />
-                    <NavItem id="products-tiktok" label="Analisa Produk" isNested />
+                    <NavItem id="tiktok-overview" label="#1 TikTok Overview" icon={<LineChart className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <NavItem id="tiktok-product" label="#2 Product Analyz" icon={<ShoppingBag className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <NavItem id="tiktok-channel" label="#3 Channel Analyz" icon={<PieChart className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <NavItem id="tiktok-affiliate" label="#4 Affiliate Analyz" icon={<Users className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
                   </div>
                 )}
               </div>
 
-              {/* Meta Ads Sub-group */}
+              {/* Shopee Sub-group */}
               <div className="mt-2">
-                <button 
-                  onClick={() => toggleSection("meta")}
+                <button
+                  onClick={() => toggleSection("shopee-section")}
                   className="flex w-full items-center justify-between py-2 text-sm font-semibold text-[#F4F4F6] hover:text-white"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="flex h-4 w-4 items-center justify-center rounded-[4px] bg-[#1877F2] text-[10px] font-bold text-white">
-                      M
-                    </div>
-                    <span>Meta Ads</span>
+                    <ChannelIcon platform="shopee" />
+                    <span>Shopee</span>
                   </div>
-                  {openSections["meta"] ? <ChevronDown className="h-3 w-3 text-[#8E8E95]" /> : <ChevronRight className="h-3 w-3 text-[#8E8E95]" />}
+                  {openSections["shopee-section"] ? <ChevronDown className="h-3 w-3 text-[#8E8E95]" /> : <ChevronRight className="h-3 w-3 text-[#8E8E95]" />}
                 </button>
-                {openSections["meta"] && (
+                {openSections["shopee-section"] && (
                   <div className="mt-1 space-y-0.5 border-l border-[#1F1F23] ml-2 pl-1">
-                    <NavItem id="komisi-meta" label="Komisi Meta Ads" isNested />
-                    <NavItem id="laba-rugi-meta" label="Laba Rugi" isNested />
-                    <NavItem id="products-meta" label="Analisa Produk" isNested />
+                    <NavItem id="shopee-overview" label="#1 Shopee Overview" icon={<LineChart className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <NavItem id="shopee-product" label="#2 Product Analyz" icon={<ShoppingBag className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <NavItem id="shopee-channel" label="#3 Channel Analyz" icon={<PieChart className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
+                    <NavItem id="shopee-affiliate" label="#4 Affiliate Analyz" icon={<Users className="h-3 w-3 text-[#8E8E95]" />} isNested activeTab={activeTab} setActiveTab={setActiveTab} />
                   </div>
                 )}
+              </div>
+
+              {/* Website Overview */}
+              <div className="mt-2">
+                <NavItem id="website" label="Website Overview" icon={<Globe className="h-3.5 w-3.5 text-[#8E8E95]" />} activeTab={activeTab} setActiveTab={setActiveTab} />
+              </div>
+
+              {/* Meta Ads */}
+              <div className="mt-2">
+                <NavItem id="meta-ads" label="Meta Ads Performance" icon={<Megaphone className="h-3.5 w-3.5 text-[#8E8E95]" />} activeTab={activeTab} setActiveTab={setActiveTab} />
               </div>
 
             </div>

@@ -105,7 +105,6 @@ export interface DashboardData {
   };
 }
 
-// Statically type raw json structure
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const rawData = consolidatedMetrics as any;
 
@@ -135,206 +134,65 @@ export function getDashboardData(
 
   const monthName = monthData.month_name;
 
-  // 1. Overview Metrics
   const overview: OverviewMetric[] = [];
   if (platform === 'All') {
     const o = monthData.combined_overview || {};
-    overview.push({
-      key: 'gmv',
-      label: 'Total GMV',
-      value: o.gmv || 0,
-      growth: o.growth?.gmv || 0,
-      format: 'currency',
-    });
-    overview.push({
-      key: 'orders',
-      label: 'Total Orders',
-      value: o.orders || 0,
-      growth: o.growth?.orders || 0,
-      format: 'number',
-    });
-    overview.push({
-      key: 'visitors',
-      label: 'Total Visitors',
-      value: o.visitors || 0,
-      growth: o.growth?.visitors || 0,
-      format: 'number',
-    });
-    overview.push({
-      key: 'conversion_rate',
-      label: 'Conversion Rate',
-      value: o.conversion_rate || 0,
-      growth: o.growth?.conversion_rate || 0,
-      format: 'percent',
-    });
+    overview.push({ key: 'gmv', label: 'Total Revenue', value: o.gmv || 0, growth: o.growth?.gmv || 0, format: 'currency' });
+    overview.push({ key: 'orders', label: 'Total Orders', value: o.orders || 0, growth: o.growth?.orders || 0, format: 'number' });
+    overview.push({ key: 'visitors', label: 'Total Visitors', value: o.visitors || 0, growth: o.growth?.visitors || 0, format: 'number' });
+    overview.push({ key: 'conversion_rate', label: 'Conversion Rate', value: o.conversion_rate || 0, growth: o.growth?.conversion_rate || 0, format: 'percent' });
   } else if (platform === 'Shopee') {
     const o = monthData.shopee_overview || {};
-    overview.push({
-      key: 'gmv',
-      label: 'Shopee GMV',
-      value: o.gmv || 0,
-      growth: o.growth?.gmv || 0,
-      format: 'currency',
-    });
-    overview.push({
-      key: 'orders',
-      label: 'Shopee Orders',
-      value: o.orders || 0,
-      growth: o.growth?.orders || 0,
-      format: 'number',
-    });
-    overview.push({
-      key: 'visitors',
-      label: 'Shopee Visitors',
-      value: o.visitors || 0,
-      growth: o.growth?.visitors || 0,
-      format: 'number',
-    });
-    overview.push({
-      key: 'conversion_rate',
-      label: 'Conversion Rate',
-      value: o.conversion_rate || 0,
-      growth: o.growth?.conversion_rate || 0,
-      format: 'percent',
-    });
-    overview.push({
-      key: 'repeat_purchase_rate',
-      label: 'Repeat Purchase Rate',
-      value: o.repeat_purchase_rate || 0,
-      growth: 0, // Not calculated in month-over-month for secondary metrics
-      format: 'percent',
-    });
+    overview.push({ key: 'gmv', label: 'Shopee Revenue', value: o.gmv || 0, growth: o.growth?.gmv || 0, format: 'currency' });
+    overview.push({ key: 'orders', label: 'Shopee Orders', value: o.orders || 0, growth: o.growth?.orders || 0, format: 'number' });
+    overview.push({ key: 'visitors', label: 'Shopee Visitors', value: o.visitors || 0, growth: o.growth?.visitors || 0, format: 'number' });
+    overview.push({ key: 'conversion_rate', label: 'Conversion Rate', value: o.conversion_rate || 0, growth: o.growth?.conversion_rate || 0, format: 'percent' });
   } else if (platform === 'TikTok') {
-    // TikTok
     const o = monthData.tiktok_overview || {};
-    overview.push({
-      key: 'gmv',
-      label: 'TikTok GMV',
-      value: o.gmv || 0,
-      growth: o.growth?.gmv || 0,
-      format: 'currency',
-    });
-    overview.push({
-      key: 'orders',
-      label: 'TikTok Orders',
-      value: o.orders || 0,
-      growth: o.growth?.orders || 0,
-      format: 'number',
-    });
-    overview.push({
-      key: 'visitors',
-      label: 'TikTok Visitors',
-      value: o.visitors || 0,
-      growth: o.growth?.visitors || 0,
-      format: 'number',
-    });
-    overview.push({
-      key: 'conversion_rate',
-      label: 'Conversion Rate',
-      value: o.conversion_rate || 0,
-      growth: o.growth?.conversion_rate || 0,
-      format: 'percent',
-    });
-    overview.push({
-      key: 'aov',
-      label: 'Average Order Value (AOV)',
-      value: o.aov || 0,
-      growth: 0,
-      format: 'currency',
-    });
+    overview.push({ key: 'gmv', label: 'TikTok Revenue', value: o.gmv || 0, growth: o.growth?.gmv || 0, format: 'currency' });
+    overview.push({ key: 'orders', label: 'TikTok Orders', value: o.orders || 0, growth: o.growth?.orders || 0, format: 'number' });
+    overview.push({ key: 'visitors', label: 'TikTok Visitors', value: o.visitors || 0, growth: o.growth?.visitors || 0, format: 'number' });
+    overview.push({ key: 'conversion_rate', label: 'Conversion Rate', value: o.conversion_rate || 0, growth: o.growth?.conversion_rate || 0, format: 'percent' });
+    overview.push({ key: 'aov', label: 'AOV', value: o.aov || 0, growth: 0, format: 'currency' });
   } else {
-    // Meta
-    overview.push({ key: 'gmv', label: 'Meta GMV', value: 48250000, growth: 0.12, format: 'currency' });
+    overview.push({ key: 'gmv', label: 'Meta Revenue', value: 48250000, growth: 0.12, format: 'currency' });
     overview.push({ key: 'orders', label: 'Meta Orders', value: 320, growth: 0.08, format: 'number' });
     overview.push({ key: 'visitors', label: 'Meta Visitors', value: 8420, growth: 0.15, format: 'number' });
     overview.push({ key: 'conversion_rate', label: 'Conversion Rate', value: 0.038, growth: 0.02, format: 'percent' });
   }
 
-  // 2. Daily Trends
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dailyTrends: DailyTrendPoint[] = (monthData.daily_trends || []).map((t: any) => {
-    let gmv = 0;
-    let orders = 0;
-    let visitors = 0;
-
+    let gmv = 0, orders = 0, visitors = 0;
     if (platform === 'All') {
-      gmv = t.combined_gmv || 0;
-      orders = t.combined_orders || 0;
-      visitors = t.combined_visitors || 0;
+      gmv = t.combined_gmv || 0; orders = t.combined_orders || 0; visitors = t.combined_visitors || 0;
     } else if (platform === 'Shopee') {
-      gmv = t.shopee_gmv || 0;
-      orders = t.shopee_orders || 0;
-      visitors = t.shopee_visitors || 0;
+      gmv = t.shopee_gmv || 0; orders = t.shopee_orders || 0; visitors = t.shopee_visitors || 0;
     } else if (platform === 'TikTok') {
-      gmv = t.tiktok_gmv || 0;
-      orders = t.tiktok_orders || 0;
-      visitors = t.tiktok_visitors || 0;
-    } else if (platform === 'Meta') {
-      gmv = Math.round((t.combined_gmv || 0) * 0.15);
-      orders = Math.round((t.combined_orders || 0) * 0.15);
-      visitors = Math.round((t.combined_visitors || 0) * 0.15);
+      gmv = t.tiktok_gmv || 0; orders = t.tiktok_orders || 0; visitors = t.tiktok_visitors || 0;
     } else {
-      gmv = 0;
-      orders = 0;
-      visitors = 0;
+      gmv = Math.round((t.combined_gmv || 0) * 0.15); orders = Math.round((t.combined_orders || 0) * 0.15); visitors = Math.round((t.combined_visitors || 0) * 0.15);
     }
-
-    return {
-      date: t.date,
-      gmv,
-      orders,
-      visitors,
-    };
+    return { date: t.date, gmv, orders, visitors };
   });
 
-  // 3. Products (Filter and format platform specific metrics)
   const rawProducts = monthData.products_consolidated || [];
   const products: ConsolidatedProduct[] = rawProducts
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .map((p: any) => {
-      let platformGmv = 0;
-      let platformItemsSold = 0;
-
-      if (platform === 'All') {
-        platformGmv = p.combined_gmv;
-        platformItemsSold = p.combined_items_sold;
-      } else if (platform === 'Shopee') {
-        platformGmv = p.shopee_gmv;
-        platformItemsSold = p.shopee_items_sold;
-      } else if (platform === 'TikTok') {
-        platformGmv = p.tiktok_gmv;
-        platformItemsSold = p.tiktok_items_sold;
-      } else if (platform === 'Meta') {
-        platformGmv = Math.round(p.combined_gmv * 0.22);
-        platformItemsSold = Math.round(p.combined_items_sold * 0.22);
-      } else {
-        platformGmv = 0;
-        platformItemsSold = 0;
-      }
-
-      return {
-        name: p.name,
-        status: p.status,
-        shopeeGmv: p.shopee_gmv,
-        shopeeItemsSold: p.shopee_items_sold,
-        tiktokGmv: p.tiktok_gmv,
-        tiktokItemsSold: p.tiktok_items_sold,
-        combinedGmv: p.combined_gmv,
-        combinedItemsSold: p.combined_items_sold,
-        platformGmv,
-        platformItemsSold,
-      };
+      let platformGmv = 0, platformItemsSold = 0;
+      if (platform === 'All') { platformGmv = p.combined_gmv; platformItemsSold = p.combined_items_sold; }
+      else if (platform === 'Shopee') { platformGmv = p.shopee_gmv; platformItemsSold = p.shopee_items_sold; }
+      else if (platform === 'TikTok') { platformGmv = p.tiktok_gmv; platformItemsSold = p.tiktok_items_sold; }
+      else { platformGmv = Math.round(p.combined_gmv * 0.22); platformItemsSold = Math.round(p.combined_items_sold * 0.22); }
+      return { name: p.name, status: p.status, shopeeGmv: p.shopee_gmv, shopeeItemsSold: p.shopee_items_sold, tiktokGmv: p.tiktok_gmv, tiktokItemsSold: p.tiktok_items_sold, combinedGmv: p.combined_gmv, combinedItemsSold: p.combined_items_sold, platformGmv, platformItemsSold };
     })
-    .filter((p: ConsolidatedProduct) => p.platformGmv > 0) // Only keep products active on selected platform
+    .filter((p: ConsolidatedProduct) => p.platformGmv > 0)
     .sort((a: ConsolidatedProduct, b: ConsolidatedProduct) => b.platformGmv - a.platformGmv);
 
-  // 4. Lives (TikTok only, show empty for Shopee/Meta)
   const lives: LiveSession[] = (platform === 'Shopee' || platform === 'Meta') ? [] : monthData.lives || [];
-
-  // 5. Videos (TikTok only, show empty for Shopee/Meta)
   const videos: VideoMetric[] = (platform === 'Shopee' || platform === 'Meta') ? [] : monthData.videos || [];
 
-  // 6. Ads
   const rawAds = monthData.ads || {};
   let adsSummary: AdPerformanceSummary = { cost: 0, gmv: 0, orders: 0, roi: 0 };
   let shopeeAdsList: ShopeeAdItem[] = [];
@@ -343,52 +201,25 @@ export function getDashboardData(
 
   if (platform === 'All') {
     const s = rawAds.summary || {};
-    adsSummary = {
-      cost: s.cost || 0,
-      gmv: s.gmv || 0,
-      orders: s.orders || 0,
-      roi: s.roi || 0,
-    };
+    adsSummary = { cost: s.cost || 0, gmv: s.gmv || 0, orders: s.orders || 0, roi: s.roi || 0 };
     shopeeAdsList = rawAds.shopee || [];
     tiktokLiveAdsList = rawAds.tiktok?.live || [];
     tiktokProductAdsList = rawAds.tiktok?.product || [];
   } else if (platform === 'Shopee') {
     const s = rawAds.shopee_summary || {};
-    adsSummary = {
-      cost: s.cost || 0,
-      gmv: s.gmv || 0,
-      orders: s.orders || 0,
-      roi: s.roas || 0, // ROAS maps to ROI for Shopee Ads
-    };
+    adsSummary = { cost: s.cost || 0, gmv: s.gmv || 0, orders: s.orders || 0, roi: s.roas || 0 };
     shopeeAdsList = rawAds.shopee || [];
   } else if (platform === 'TikTok') {
-    // TikTok
     const s = rawAds.tiktok?.summary || {};
-    adsSummary = {
-      cost: s.cost || 0,
-      gmv: s.gmv || 0,
-      orders: s.orders || 0,
-      roi: s.roi || 0,
-    };
+    adsSummary = { cost: s.cost || 0, gmv: s.gmv || 0, orders: s.orders || 0, roi: s.roi || 0 };
     tiktokLiveAdsList = rawAds.tiktok?.live || [];
     tiktokProductAdsList = rawAds.tiktok?.product || [];
   } else {
-    // Meta
     adsSummary = { cost: 9200000, gmv: 48250000, orders: 320, roi: 5.24 };
   }
 
   return {
-    monthName,
-    overview,
-    dailyTrends,
-    products,
-    lives,
-    videos,
-    ads: {
-      summary: adsSummary,
-      shopee: shopeeAdsList,
-      tiktokLive: tiktokLiveAdsList,
-      tiktokProduct: tiktokProductAdsList,
-    },
+    monthName, overview, dailyTrends, products, lives, videos,
+    ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList },
   };
 }

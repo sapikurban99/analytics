@@ -10,9 +10,39 @@ interface AIInsightProps {
   videos: VideoMetric[];
 }
 
+interface VideoListProps {
+  items: VideoMetric[];
+}
+
+const VideoList = ({ items }: VideoListProps) => {
+  if (items.length === 0) return <p className="text-sm text-[#8E8E95] italic">Tidak ada video di kategori ini.</p>;
+
+  return (
+    <div className="space-y-3">
+      {items.slice(0, 3).map((v, i) => (
+        <div key={i} className="flex items-center justify-between rounded-lg border border-[#1F1F23] bg-[#0B0B0C] p-3 transition-colors hover:border-[#3D4BFF]/50">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#2A2A32] text-[#8E8E95]">
+              <Play className="h-4 w-4" />
+            </div>
+            <div className="max-w-[200px] sm:max-w-[300px]">
+              <p className="truncate text-sm font-semibold text-white">{v.title || "Video Tanpa Judul"}</p>
+              <p className="text-xs text-[#8E8E95]">@{v.creator}</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-sm font-bold text-white">{formatNumber(v.views)} Views</p>
+            <p className="text-xs font-semibold text-[#10B981]">{formatCurrency(v.gmv)} GMV</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function AIInsight({ videos }: AIInsightProps) {
   // Simple AI Segmentation logic
-  const { viral, average, underperforming } = useMemo(() => {
+  const { viral, average: _average, underperforming } = useMemo(() => {
     if (!videos || videos.length === 0) {
       return { viral: [], average: [], underperforming: [] };
     }
@@ -41,32 +71,6 @@ export default function AIInsight({ videos }: AIInsightProps) {
       </div>
     );
   }
-
-  const VideoList = ({ items, type }: { items: VideoMetric[], type: "viral" | "average" | "underperforming" }) => {
-    if (items.length === 0) return <p className="text-sm text-[#8E8E95] italic">Tidak ada video di kategori ini.</p>;
-
-    return (
-      <div className="space-y-3">
-        {items.slice(0, 3).map((v, i) => (
-          <div key={i} className="flex items-center justify-between rounded-lg border border-[#1F1F23] bg-[#0B0B0C] p-3 transition-colors hover:border-[#3D4BFF]/50">
-            <div className="flex items-center gap-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-[#2A2A32] text-[#8E8E95]">
-                <Play className="h-4 w-4" />
-              </div>
-              <div className="max-w-[200px] sm:max-w-[300px]">
-                <p className="truncate text-sm font-semibold text-white">{v.title || "Video Tanpa Judul"}</p>
-                <p className="text-xs text-[#8E8E95]">@{v.creator}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-bold text-white">{formatNumber(v.views)} Views</p>
-              <p className="text-xs font-semibold text-[#10B981]">{formatCurrency(v.gmv)} GMV</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -110,7 +114,7 @@ export default function AIInsight({ videos }: AIInsightProps) {
                 <TrendingUp className="h-4 w-4 text-emerald-500" />
                 <h4 className="text-sm font-bold text-emerald-500">Viral / High Conversion</h4>
               </div>
-              <VideoList items={viral} type="viral" />
+              <VideoList items={viral} />
             </div>
             
             <div>
@@ -118,7 +122,7 @@ export default function AIInsight({ videos }: AIInsightProps) {
                 <AlertCircle className="h-4 w-4 text-red-500" />
                 <h4 className="text-sm font-bold text-red-500">Underperforming</h4>
               </div>
-              <VideoList items={underperforming} type="underperforming" />
+              <VideoList items={underperforming} />
             </div>
           </div>
         </Card>
