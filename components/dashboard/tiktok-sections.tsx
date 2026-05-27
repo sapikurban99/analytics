@@ -9,13 +9,11 @@ import {
   Percent,
   Coins,
   Store,
-  LineChart,
-  PieChart,
 } from "lucide-react";
 import MetricCard from "@/components/ui/metric-card";
 import TrendChart from "@/components/ui/trend-chart";
 import DataTable, { ColumnDef } from "@/components/ui/data-table";
-import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
+import { formatCurrency, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { DashboardData, VideoMetric, LiveSession } from "@/lib/db";
 
@@ -42,7 +40,6 @@ export function TikTokOverview({ dashboardData }: Props) {
 
   return (
     <div className="space-y-8 mt-4">
-      {/* Row 1: Financial KPI */}
       <div>
         <h2 className="text-lg font-bold text-foreground mb-4">Financial Metrics</h2>
         <div className="grid gap-6 sm:grid-cols-3">
@@ -52,7 +49,6 @@ export function TikTokOverview({ dashboardData }: Props) {
         </div>
       </div>
 
-      {/* Row 2: Operational KPI */}
       <div>
         <h2 className="text-lg font-bold text-foreground mb-4">Operational Metrics</h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
@@ -64,12 +60,10 @@ export function TikTokOverview({ dashboardData }: Props) {
         </div>
       </div>
 
-      {/* Daily Trend */}
       <div>
         <TrendChart dataPoints={dashboardData.dailyTrends} platform="TikTok" />
       </div>
 
-      {/* Revenue Composition */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Revenue Composition</h3>
         <div className="grid gap-6 lg:grid-cols-2">
@@ -101,7 +95,11 @@ export function TikTokOverview({ dashboardData }: Props) {
 export function TikTokProductAnalyz({ dashboardData }: Props) {
   const tiktokProducts = dashboardData.products.filter((p) => p.tiktokGmv > 0);
 
-  const columns = useProductAnalyzColumns();
+  const columns: ColumnDef<any>[] = [
+    { key: "name", header: "Product Name", sortable: true, render: (p) => <div className="max-w-xs"><p className="truncate font-semibold text-foreground" title={p.name}>{p.name}</p></div> },
+    { key: "tiktokGmv", header: "Revenue", sortable: true, align: "right", render: (p) => <span className="font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</span> },
+    { key: "tiktokItemsSold", header: "Items Sold", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.tiktokItemsSold)}</span> },
+  ];
 
   return (
     <div className="space-y-6 mt-4">
@@ -113,90 +111,6 @@ export function TikTokProductAnalyz({ dashboardData }: Props) {
       <DataTable columns={columns} data={tiktokProducts} searchFields={["name"]} searchPlaceholder="Cari produk TikTok..." defaultSort={{ key: "tiktokGmv", direction: "desc" }} />
     </div>
   );
-}
-
-function useProductAnalyzColumns(): ColumnDef<any>[] {
-  const getProductSeed = (name: string) => {
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-      hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return Math.abs(hash);
-  };
-
-  return [
-    { key: "name", header: "Product Name", sortable: true, render: (p) => <div className="max-w-xs"><p className="truncate font-semibold text-foreground" title={p.name}>{p.name}</p></div> },
-    { key: "tiktokGmv", header: "Revenue", sortable: true, align: "right", render: (p) => <span className="font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</span> },
-    { key: "tiktokItemsSold", header: "Qty Sold", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.tiktokItemsSold)}</span> },
-    {
-      key: "impressions",
-      header: "Product Impression",
-      sortable: true,
-      align: "right",
-      render: (p) => {
-        const seed = getProductSeed(p.name);
-        const impressions = (seed % 40000) + 10000;
-        return <span>{formatNumber(impressions)}</span>;
-      }
-    },
-    {
-      key: "clicks",
-      header: "Product Clicks",
-      sortable: true,
-      align: "right",
-      render: (p) => {
-        const seed = getProductSeed(p.name);
-        const impressions = (seed % 40000) + 10000;
-        const clicks = Math.floor(impressions * (0.05 + (seed % 5) * 0.01));
-        return <span>{formatNumber(clicks)}</span>;
-      }
-    },
-    {
-      key: "ctr",
-      header: "CTR%",
-      sortable: true,
-      align: "right",
-      render: (p) => {
-        const seed = getProductSeed(p.name);
-        const ctr = 0.05 + (seed % 10) * 0.01;
-        return <span className="text-emerald-500 font-semibold">{formatPercent(ctr)}</span>;
-      }
-    },
-    { key: "orders", header: "Orders", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.tiktokItemsSold)}</span> },
-    {
-      key: "ctor",
-      header: "CTOR%",
-      sortable: true,
-      align: "right",
-      render: (p) => {
-        const seed = getProductSeed(p.name);
-        const ctor = 0.1 + (seed % 20) * 0.01;
-        return <span className="text-emerald-500 font-semibold">{formatPercent(ctor)}</span>;
-      }
-    },
-    {
-      key: "atc",
-      header: "ATC",
-      sortable: true,
-      align: "right",
-      render: (p) => {
-        const seed = getProductSeed(p.name);
-        const atc = Math.floor(p.tiktokItemsSold * (1.2 + (seed % 3) * 0.2));
-        return <span>{formatNumber(atc)}</span>;
-      }
-    },
-    {
-      key: "atcRate",
-      header: "ATC Rate%",
-      sortable: true,
-      align: "right",
-      render: (p) => {
-        const seed = getProductSeed(p.name);
-        const atcRate = 0.15 + (seed % 15) * 0.01;
-        return <span className="text-emerald-500 font-semibold">{formatPercent(atcRate)}</span>;
-      }
-    },
-  ];
 }
 
 /* ====== #3 TIKTOK CHANNEL ANALYZ ====== */
@@ -220,7 +134,7 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
     { key: "items_sold", header: "SKU Order", sortable: true, align: "right" },
     { key: "views", header: "VV (Views)", sortable: true, align: "right" },
     { key: "likes", header: "Likes", sortable: true, align: "right" },
-    { key: "ctr", header: "CTOR%", sortable: true, align: "right", render: (v) => <span className="text-emerald-500 font-semibold">{formatPercent(v.ctr)}</span> },
+    { key: "ctr", header: "CTOR%", sortable: true, align: "right", render: (v) => <span className="text-emerald-500 font-semibold">{(v.ctr * 100).toFixed(2)}%</span> },
   ];
 
   const liveColumns: ColumnDef<LiveSession>[] = [
@@ -231,12 +145,13 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
     { key: "items_sold", header: "LIVE Items Sold", sortable: true, align: "right" },
     { key: "views", header: "Views", sortable: true, align: "right" },
     { key: "clicks", header: "Prod Clicks", sortable: true, align: "right" },
-    { key: "ctr", header: "CTR%", sortable: true, align: "right", render: (l) => <span className="text-emerald-500 font-semibold">{formatPercent(l.ctr)}</span> },
+    { key: "ctr", header: "CTR%", sortable: true, align: "right", render: (l) => <span className="text-emerald-500 font-semibold">{(l.ctr * 100).toFixed(2)}%</span> },
   ];
+
+  const productCardProducts = dashboardData.products.filter((p) => p.tiktokGmv > 0);
 
   return (
     <div className="space-y-8 mt-4">
-      {/* Filter */}
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium text-muted-foreground">Filter:</span>
         {(["all", "Seller", "Affiliate"] as const).map((f) => (
@@ -245,8 +160,8 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
             onClick={() => setChannelFilter(f)}
             className={cn(
               "px-4 py-1.5 text-xs font-bold rounded-lg transition-all border cursor-pointer",
-              channelFilter === f 
-                ? "bg-[#3D4BFF]/10 text-[#3D4BFF] border-[#3D4BFF]/30 dark:bg-[#3D4BFF]/20 dark:text-white" 
+              channelFilter === f
+                ? "bg-[#3D4BFF]/10 text-[#3D4BFF] border-[#3D4BFF]/30 dark:bg-[#3D4BFF]/20 dark:text-white"
                 : "bg-card text-muted-foreground border-border hover:text-foreground hover:bg-muted/30"
             )}
           >
@@ -255,46 +170,33 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
         ))}
       </div>
 
-      {/* Video Performance */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Video Performance</h3>
         <DataTable columns={videoColumns} data={filteredVideos} searchFields={["creator", "title"]} searchPlaceholder="Cari video..." defaultSort={{ key: "gmv", direction: "desc" }} />
       </div>
 
-      {/* Live Performance */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Live Performance</h3>
         <DataTable columns={liveColumns} data={filteredLives} searchFields={["creator_name", "creator"]} searchPlaceholder="Cari host..." defaultSort={{ key: "gmv", direction: "desc" }} />
       </div>
 
-      {/* Product Card */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Product Card (Toko / Showcase Pasif)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                <th className="py-3 px-3">Product ID</th><th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">GMV (Rp)</th><th className="py-3 px-3 text-right">SKU Orders</th><th className="py-3 px-3 text-right">Views</th><th className="py-3 px-3 text-right">Clicks</th><th className="py-3 px-3 text-right">ATC</th>
+                <th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">GMV (Rp)</th><th className="py-3 px-3 text-right">Items Sold</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
-              {dashboardData.products.filter((p) => p.tiktokGmv > 0).slice(0, 15).map((p, i) => {
-                const seed = p.name.length + i;
-                const views = (seed * 12345) % 40000 + 10000;
-                const clicks = Math.floor(views * (0.05 + (seed % 5) * 0.01));
-                const atc = Math.floor(clicks * (0.1 + (seed % 3) * 0.05));
-                return (
-                  <tr key={i} className="hover:bg-muted/20 transition-colors">
-                    <td className="py-3 px-3 text-muted-foreground">TIK-{String(i + 1).padStart(3, "0")}</td>
-                    <td className="py-3 px-3 font-semibold text-foreground max-w-xs truncate">{p.name}</td>
-                    <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</td>
-                    <td className="py-3 px-3 text-right">{formatNumber(p.tiktokItemsSold)}</td>
-                    <td className="py-3 px-3 text-right">{formatNumber(views)}</td>
-                    <td className="py-3 px-3 text-right">{formatNumber(clicks)}</td>
-                    <td className="py-3 px-3 text-right">{formatNumber(atc)}</td>
-                  </tr>
-                );
-              })}
+              {productCardProducts.slice(0, 20).map((p, i) => (
+                <tr key={i} className="hover:bg-muted/20 transition-colors">
+                  <td className="py-3 px-3 font-semibold text-foreground max-w-xs truncate">{p.name}</td>
+                  <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</td>
+                  <td className="py-3 px-3 text-right">{formatNumber(p.tiktokItemsSold)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -305,16 +207,25 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
 
 /* ====== #4 TIKTOK AFFILIATE ANALYZ ====== */
 export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
-  const affiliates = React.useMemo(() => {
+  const affiliateVideos = React.useMemo(
+    () => dashboardData.videos.filter((v) => v.type === "Affiliate"),
+    [dashboardData]
+  );
+  const affiliateLives = React.useMemo(
+    () => dashboardData.lives.filter((l) => l.type === "Affiliate"),
+    [dashboardData]
+  );
+
+  const creators = React.useMemo(() => {
     const map: Record<string, { creator: string; gmv: number; itemsSold: number; videos: number; lives: number; commission: number }> = {};
-    dashboardData.videos.filter((v) => v.type === "Affiliate").forEach((v) => {
+    affiliateVideos.forEach((v) => {
       if (!map[v.creator]) map[v.creator] = { creator: v.creator, gmv: 0, itemsSold: 0, videos: 0, lives: 0, commission: 0 };
       map[v.creator].gmv += v.gmv;
       map[v.creator].itemsSold += v.items_sold;
       map[v.creator].videos += 1;
       map[v.creator].commission += v.gmv * 0.08;
     });
-    dashboardData.lives.filter((l) => l.type === "Affiliate").forEach((l) => {
+    affiliateLives.forEach((l) => {
       if (!map[l.creator_name]) map[l.creator_name] = { creator: l.creator_name, gmv: 0, itemsSold: 0, videos: 0, lives: 0, commission: 0 };
       map[l.creator_name].gmv += l.gmv;
       map[l.creator_name].itemsSold += l.items_sold;
@@ -322,22 +233,22 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
       map[l.creator_name].commission += l.gmv * 0.08;
     });
     return Object.values(map).sort((a, b) => b.gmv - a.gmv);
-  }, [dashboardData]);
+  }, [affiliateVideos, affiliateLives]);
 
   const affiliateProducts = React.useMemo(() => {
-    const map: Record<string, { name: string; orders: number; videos: number; lives: number; commission: number }> = {};
-    dashboardData.videos.filter((v) => v.type === "Affiliate").forEach((v) => {
-      if (!map[v.title]) map[v.title] = { name: v.title, orders: 0, videos: 0, lives: 0, commission: 0 };
-      map[v.title].orders += v.items_sold;
-      map[v.title].videos += 1;
-      map[v.title].commission += v.gmv * 0.08;
+    const products = dashboardData.products.filter((p) => p.tiktokGmv > 0);
+    const productMap = new Map<string, { name: string; gmv: number; itemsSold: number }>();
+    products.forEach((p) => {
+      productMap.set(p.name, { name: p.name, gmv: p.tiktokGmv, itemsSold: p.tiktokItemsSold });
     });
-    return Object.values(map).sort((a, b) => b.orders - a.orders);
+    return Array.from(productMap.values()).sort((a, b) => b.gmv - a.gmv);
   }, [dashboardData]);
+
+  const totalAffiliateGmv = creators.reduce((s, c) => s + c.gmv, 0);
+  const totalCommission = creators.reduce((s, c) => s + c.commission, 0);
 
   return (
     <div className="space-y-8 mt-4">
-      {/* A. Creator Analyz */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Creator Analyz</h3>
         <div className="overflow-x-auto">
@@ -348,7 +259,7 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
-              {affiliates.slice(0, 20).map((a) => (
+              {creators.slice(0, 20).map((a) => (
                 <tr key={a.creator} className="hover:bg-muted/20 transition-colors">
                   <td className="py-3 px-3 font-semibold text-foreground">@{a.creator}</td>
                   <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(a.gmv)}</td>
@@ -360,31 +271,28 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
                   <td className="py-3 px-3 text-right font-bold text-violet-500 dark:text-violet-400">{formatCurrency(a.commission)}</td>
                 </tr>
               ))}
-              {affiliates.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">No affiliate data</td></tr>}
+              {creators.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">No affiliate data</td></tr>}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* B. Product Analyz */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Product Analyz (Jalur Afiliasi)</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                <th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">Orders</th><th className="py-3 px-3 text-right">Videos Post</th><th className="py-3 px-3 text-right">LIVE Streams</th><th className="py-3 px-3 text-right">Est. Commission</th><th className="py-3 px-3 text-right">Sample</th>
+                <th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">Revenue</th><th className="py-3 px-3 text-right">Items Sold</th><th className="py-3 px-3 text-right">Est. Commission</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
               {affiliateProducts.slice(0, 15).map((p, i) => (
                 <tr key={i} className="hover:bg-muted/20 transition-colors">
                   <td className="py-3 px-3 font-semibold text-foreground max-w-xs truncate">{p.name}</td>
-                  <td className="py-3 px-3 text-right">{formatNumber(p.orders)}</td>
-                  <td className="py-3 px-3 text-right">{p.videos}</td>
-                  <td className="py-3 px-3 text-right">{p.lives}</td>
-                  <td className="py-3 px-3 text-right font-bold text-violet-500 dark:text-violet-400">{formatCurrency(p.commission)}</td>
-                  <td className="py-3 px-3 text-right">{Math.floor(p.orders / 3)}</td>
+                  <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(p.gmv)}</td>
+                  <td className="py-3 px-3 text-right">{formatNumber(p.itemsSold)}</td>
+                  <td className="py-3 px-3 text-right font-bold text-violet-500 dark:text-violet-400">{formatCurrency(p.gmv * 0.08)}</td>
                 </tr>
               ))}
             </tbody>
@@ -392,33 +300,14 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
         </div>
       </div>
 
-      {/* C. Sample & Shipping */}
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <h3 className="text-lg font-bold text-foreground mb-4">Sample & Shipping</h3>
-        <div className="grid gap-6 lg:grid-cols-3">
-          {[
-            { label: "Sample Requested ID", value: "SMP-7824" },
-            { label: "Creator Name", value: "@creator_sample" },
-            { label: "Shipping Status", value: "Sent", color: "text-emerald-500 dark:text-emerald-400" },
-            { label: "Video Link Verification Rate", value: "87.5%", color: "text-emerald-500 dark:text-emerald-400" },
-          ].map((item) => (
-            <div key={item.label} className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">{item.label}</span>
-              <span className={cn("text-sm font-semibold text-foreground", item.color)}>{item.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* D. Commission */}
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Commission</h3>
         <div className="grid gap-6 lg:grid-cols-4">
           {[
             { label: "Commission Plan Type", value: "Open" },
             { label: "Commission Rate%", value: "8%" },
-            { label: "Total Paid Out", value: formatCurrency(affiliates.reduce((s, a) => s + a.commission, 0)) },
-            { label: "Affiliate ROI Multiplier", value: `${(totalAffiliateGMV(dashboardData) / Math.max(1, affiliates.reduce((s, a) => s + a.commission, 0))).toFixed(2)}x` },
+            { label: "Total Paid Out", value: formatCurrency(totalCommission) },
+            { label: "Affiliate ROI Multiplier", value: `${(totalAffiliateGmv / Math.max(1, totalCommission)).toFixed(2)}x` },
           ].map((item) => (
             <div key={item.label} className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">{item.label}</span>
@@ -429,10 +318,4 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
       </div>
     </div>
   );
-}
-
-function totalAffiliateGMV(dashboardData: DashboardData): number {
-  const fromVideos = dashboardData.videos.filter((v) => v.type === "Affiliate").reduce((s, v) => s + v.gmv, 0);
-  const fromLives = dashboardData.lives.filter((l) => l.type === "Affiliate").reduce((s, l) => s + l.gmv, 0);
-  return fromVideos + fromLives;
 }

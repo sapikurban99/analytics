@@ -20,7 +20,6 @@ import { formatCompactCurrency } from "@/lib/format";
 import { DailyTrendPoint } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
-// Register ChartJS elements
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -47,7 +46,6 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
     );
   }
 
-  // Format date from "YYYY-MM-DD" to short "DD MMM"
   const formatDate = (dateStr: string) => {
     try {
       const date = new Date(dateStr);
@@ -58,14 +56,7 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
   };
 
   const labels = dataPoints.map((dp) => formatDate(dp.date));
-  
-  // Create synthetic cost data (30% of GMV) for visual demonstration of dual-line
-  // Use a deterministic sine-wave based pseudo-random generator to remain pure for React 19
   const gmvData = dataPoints.map((dp) => dp.gmv);
-  const costData = dataPoints.map((dp, index) => {
-    const sineFactor = Math.abs(Math.sin(index + 1));
-    return dp.gmv * 0.3 + (sineFactor * dp.gmv * 0.1);
-  });
 
   const chartData = {
     labels,
@@ -74,7 +65,7 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
         fill: true,
         label: "Revenue",
         data: gmvData,
-        borderColor: "#10B981", // Emerald
+        borderColor: "#10B981",
         borderWidth: 3,
         pointBackgroundColor: "#10B981",
         pointBorderColor: "var(--card, #131316)",
@@ -86,33 +77,9 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
           const chart = context.chart;
           const { ctx, chartArea } = chart;
           if (!chartArea) return undefined;
-          
           const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
           gradient.addColorStop(0, "rgba(16, 185, 129, 0.2)");
           gradient.addColorStop(1, "rgba(16, 185, 129, 0)");
-          return gradient;
-        },
-      },
-      {
-        fill: true,
-        label: "Cost",
-        data: costData,
-        borderColor: "#3B82F6", // Blue
-        borderWidth: 3,
-        pointBackgroundColor: "#3B82F6",
-        pointBorderColor: "var(--card, #131316)",
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        tension: 0.4,
-        backgroundColor: (context: ScriptableContext<"line">) => {
-          const chart = context.chart;
-          const { ctx, chartArea } = chart;
-          if (!chartArea) return undefined;
-          
-          const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-          gradient.addColorStop(0, "rgba(59, 130, 246, 0.2)");
-          gradient.addColorStop(1, "rgba(59, 130, 246, 0)");
           return gradient;
         },
       },
@@ -134,15 +101,8 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
         borderWidth: 1,
         padding: 12,
         cornerRadius: 12,
-        titleFont: {
-          family: "Figtree, sans-serif",
-          weight: "bold",
-          size: 13,
-        },
-        bodyFont: {
-          family: "Figtree, sans-serif",
-          size: 12,
-        },
+        titleFont: { family: "Figtree, sans-serif", weight: "bold", size: 13 },
+        bodyFont: { family: "Figtree, sans-serif", size: 12 },
         callbacks: {
           label: (context) => {
             const val = context.parsed.y ?? 0;
@@ -153,46 +113,17 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
     },
     scales: {
       x: {
-        grid: {
-          display: false,
-        },
-        ticks: {
-          color: "#8E8E95",
-          font: {
-            family: "Figtree, sans-serif",
-            size: 11,
-          },
-          maxRotation: 0,
-          autoSkip: true,
-          maxTicksLimit: 8,
-        },
-        border: {
-          display: false,
-        },
+        grid: { display: false },
+        ticks: { color: "#8E8E95", font: { family: "Figtree, sans-serif", size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
+        border: { display: false },
       },
       y: {
-        grid: {
-          color: "rgba(142, 142, 149, 0.1)",
-        },
-        ticks: {
-          color: "#8E8E95",
-          font: {
-            family: "Figtree, sans-serif",
-            size: 11,
-          },
-          callback: (value) => {
-            return formatCompactCurrency(value as number).replace("Rp ", "");
-          },
-        },
-        border: {
-          display: false,
-        },
+        grid: { color: "rgba(142, 142, 149, 0.1)" },
+        ticks: { color: "#8E8E95", font: { family: "Figtree, sans-serif", size: 11 }, callback: (value) => formatCompactCurrency(value as number).replace("Rp ", "") },
+        border: { display: false },
       },
     },
-    interaction: {
-      mode: "index",
-      intersect: false,
-    },
+    interaction: { mode: "index", intersect: false },
   };
 
   return (
@@ -200,20 +131,13 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-lg font-bold text-foreground">Grafik Tren</h3>
-          <p className="text-sm text-muted-foreground">Revenue vs Cost Over Time</p>
+          <p className="text-sm text-muted-foreground">Daily Revenue Over Time</p>
         </div>
-        <div className="flex gap-4">
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-emerald-500"></div>
-            <span className="text-xs font-semibold text-muted-foreground">Revenue</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="h-3 w-3 rounded-full bg-blue-500"></div>
-            <span className="text-xs font-semibold text-muted-foreground">Cost</span>
-          </div>
+        <div className="flex items-center gap-2">
+          <div className="h-3 w-3 rounded-full bg-emerald-500"></div>
+          <span className="text-xs font-semibold text-muted-foreground">Revenue</span>
         </div>
       </div>
-
       <div className="h-72 w-full">
         <Line data={chartData} options={chartOptions} />
       </div>

@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
-  Lock, Unlock, UploadCloud, FileText, Trash2, Edit,
+  Lock, UploadCloud, FileText, Trash2, Edit,
   Clock, Database, AlertTriangle, CheckCircle2, RefreshCw,
   User, Eye, EyeOff, ChevronRight, Inbox,
-  Code, Settings
+  Code, Settings, BarChart3, Wand2, Loader2
 } from "lucide-react";
 import Link from "next/link";
+import DataExplorer from "@/components/admin/data-explorer";
 
 interface MonthItem {
   key: string;
@@ -37,7 +38,7 @@ export default function AdminPage() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<"upload" | "database" | "history" | "edit">("database");
+  const [activeTab, setActiveTab] = useState<"explorer" | "upload" | "history" | "edit">("explorer");
   // Channel filter
   const [activeChannel, setActiveChannel] = useState<"all" | "shopee" | "tiktok" | "meta" | "website">("all");
 
@@ -70,12 +71,19 @@ export default function AdminPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  // Upload States
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadPlatform, setUploadPlatform] = useState<string>("Shopee");
-  const [uploadCategory, setUploadCategory] = useState<string>("Shp Ads");
-  const [uploadMonth, setUploadMonth] = useState<string>("januari");
+  // Batch Upload States
+  const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [currentUploadIndex, setCurrentUploadIndex] = useState<number>(-1);
+  const [uploadStatuses, setUploadStatuses] = useState<Record<string, "waiting" | "uploading" | "success" | "error">>({});
+  const [uploadResults, setUploadResults] = useState<string[]>([]);
+
+  const [uploadPlatform, setUploadPlatform] = useState<string>("");
+  const [uploadCategory, setUploadCategory] = useState<string>("");
+  const [uploadMonth, setUploadMonth] = useState<string>("");
   const [uploadYear, setUploadYear] = useState<string>("2026");
+  const [autoDetect, setAutoDetect] = useState<boolean>(true);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadErrorDetails, setUploadErrorDetails] = useState<string | null>(null);
@@ -85,6 +93,13 @@ export default function AdminPage() {
   const [historyList, setHistoryList] = useState<UploadHistoryItem[]>([]);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  // Explorer States
+  const [explorerMonth, setExplorerMonth] = useState<string>("");
+  const [explorerMonthData, setExplorerMonthData] = useState<Record<string, any> | null>(null);
+  const [explorerMonthName, setExplorerMonthName] = useState<string>("");
+  const [isFetchingExplorer, setIsFetchingExplorer] = useState(false);
+  const [explorerError, setExplorerError] = useState<string | null>(null);
 
   // Check sessionStorage on Mount
   useEffect(() => {
@@ -136,6 +151,37 @@ export default function AdminPage() {
       setIsFetchingHistory(false);
     }
   };
+
+  // Fetch Explorer Data
+  const fetchExplorerData = useCallback(async (monthKey: string) => {
+    if (!monthKey) return;
+    setIsFetchingExplorer(true);
+    setExplorerError(null);
+    try {
+      const res = await fetch("/api/admin/metrics");
+      if (!res.ok) throw new Error("Gagal mengambil data.");
+      const data = await res.json();
+      if (data?.months?.[monthKey]) {
+        setExplorerMonthData(data.months[monthKey]);
+        setExplorerMonthName(data.months[monthKey].month_name || monthKey);
+      } else {
+        setExplorerError(`Data untuk ${monthKey} tidak ditemukan.`);
+        setExplorerMonthData(null);
+      }
+    } catch (err: any) {
+      setExplorerError(err.message || "Gagal memuat data.");
+      setExplorerMonthData(null);
+    } finally {
+      setIsFetchingExplorer(false);
+    }
+  }, []);
+
+  // Auto-load explorer when month or channel changes
+  useEffect(() => {
+    if (activeTab === "explorer" && explorerMonth) {
+      fetchExplorerData(explorerMonth);
+    }
+  }, [activeTab, explorerMonth, fetchExplorerData]);
 
   // Fetch initial data when authenticated
   useEffect(() => {
@@ -207,54 +253,189 @@ export default function AdminPage() {
     }
   };
 
-  const handlePlatformChange = (p: string) => {
-    setUploadPlatform(p);
-    const cats = getCategoriesForPlatform(p);
-    if (cats.length > 0) {
-      setUploadCategory(cats[0].key);
+  // Auto-detect & add files to batch list
+  const handleFilesSelect = (filesList: FileList | null) => {
+    if (!filesList) return;
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    const newFiles = Array.from(filesList);
+    addFilesToQueue(newFiles);
+  };
+
+  const addFilesToQueue = (newFiles: File[]) => {
+    const updatedFiles = [...uploadFiles];
+    const updatedStatuses = { ...uploadStatuses };
+
+    newFiles.forEach((file) => {
+      if (updatedFiles.some(f => f.name === file.name && f.size === file.size)) return;
+      updatedFiles.push(file);
+      updatedStatuses[file.name] = "waiting";
+    });
+
+    setUploadFiles(updatedFiles);
+    setUploadStatuses(updatedStatuses);
+  };
+
+  // Folder traversal: recursively read all files from dropped directory
+  const traverseFileTree = async (entry: FileSystemEntry): Promise<File[]> => {
+    const files: File[] = [];
+    
+    if (entry.isFile) {
+      return new Promise((resolve) => {
+        (entry as FileSystemFileEntry).file((file) => {
+          files.push(file);
+          resolve(files);
+        });
+      });
+    }
+
+    if (entry.isDirectory) {
+      const dirReader = (entry as FileSystemDirectoryEntry).createReader();
+      const readAllEntries = (): Promise<FileSystemEntry[]> => {
+        return new Promise((resolve) => {
+          dirReader.readEntries((entries) => {
+            if (entries.length === 0) {
+              resolve([]);
+            } else {
+              readAllEntries().then((more) => resolve([...entries, ...more]));
+            }
+          });
+        });
+      };
+
+      const entries = await readAllEntries();
+      for (const childEntry of entries) {
+        const childFiles = await traverseFileTree(childEntry);
+        files.push(...childFiles);
+      }
+    }
+
+    return files;
+  };
+
+  // Handle folder drop: scan directories via webkitGetAsEntry
+  const handleFolderDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    const items = e.dataTransfer.items;
+    if (!items) {
+      handleFilesSelect(e.dataTransfer.files);
+      return;
+    }
+
+    const allFiles: File[] = [];
+    let hasFolders = false;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const entry = item.webkitGetAsEntry?.();
+      
+      if (entry) {
+        hasFolders = true;
+        const entryFiles = await traverseFileTree(entry);
+        allFiles.push(...entryFiles);
+      } else {
+        const file = item.getAsFile();
+        if (file) allFiles.push(file);
+      }
+    }
+
+    if (!hasFolders) {
+      handleFilesSelect(e.dataTransfer.files);
+    } else {
+      addFilesToQueue(allFiles);
     }
   };
 
-  // File Upload Submission
+  // Upload one file using XMLHttpRequest with progress tracking
+  const uploadSingleFile = (file: File, index: number): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      setUploadProgress(0);
+      setCurrentUploadIndex(index);
+      setUploadStatuses(prev => ({ ...prev, [file.name]: "uploading" }));
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("auto_detect", autoDetect ? "true" : "false");
+      formData.append("platform", uploadPlatform || "");
+      formData.append("category", uploadCategory || "");
+      formData.append("month", uploadMonth || "");
+      formData.append("year", uploadYear || "2026");
+
+      const xhr = new XMLHttpRequest();
+      
+      xhr.open("POST", "/api/upload", true);
+
+      // Track progress
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          setUploadProgress(percent);
+        }
+      };
+
+      xhr.onload = () => {
+        let result: any = {};
+        try {
+          result = JSON.parse(xhr.responseText);
+        } catch (e) {}
+
+        if (xhr.status >= 200 && xhr.status < 300 && result.success) {
+          setUploadStatuses(prev => ({ ...prev, [file.name]: "success" }));
+          const info = autoDetect && result.detected
+            ? `${result.detected.platform} - ${result.detected.category} (${result.detected.month} ${result.detected.year})`
+            : `${uploadPlatform || "?"} - ${uploadCategory || "?"} (${uploadMonth || "?"} ${uploadYear})`;
+          setUploadResults(prev => [...prev, `Sukses: ${file.name} -> ${info}`]);
+          resolve();
+        } else {
+          setUploadStatuses(prev => ({ ...prev, [file.name]: "error" }));
+          setUploadResults(prev => [...prev, `Gagal: ${file.name} (${result.error || "Unknown error"})`]);
+          resolve(); // Resolve anyway so we can upload subsequent files!
+        }
+      };
+
+      xhr.onerror = () => {
+        setUploadStatuses(prev => ({ ...prev, [file.name]: "error" }));
+        setUploadResults(prev => [...prev, `Gagal: ${file.name} (Koneksi bermasalah)`]);
+        resolve(); // Continue batch
+      };
+
+      xhr.send(formData);
+    });
+  };
+
+  // Run sequential batch upload
   const handleUploadSubmit = async () => {
-    if (!uploadFile) return;
+    const pendingFiles = uploadFiles.filter(f => uploadStatuses[f.name] === "waiting" || uploadStatuses[f.name] === "error");
+    if (pendingFiles.length === 0) return;
+
     setIsUploading(true);
     setUploadError(null);
-    setUploadErrorDetails(null);
     setUploadSuccess(null);
+    setUploadResults([]);
 
-    const formData = new FormData();
-    formData.append("file", uploadFile);
-    formData.append("platform", uploadPlatform);
-    formData.append("category", uploadCategory);
-    formData.append("month", uploadMonth);
-    formData.append("year", uploadYear);
-
-    try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const result = await res.json();
-
-      if (res.ok && result.success) {
-        setUploadSuccess(
-          `Dokumen ${uploadPlatform} - ${uploadCategory} (${uploadMonth} ${uploadYear}) berhasil diunggah & dikonsolidasikan!`
-        );
-        setUploadFile(null);
-        fetchMonths();
-        fetchHistory();
-      } else {
-        setUploadError(result.error || "Gagal mengunggah file.");
-        setUploadErrorDetails(result.details || null);
+    // Loop through files sequentially
+    for (let i = 0; i < uploadFiles.length; i++) {
+      const file = uploadFiles[i];
+      if (uploadStatuses[file.name] === "waiting" || uploadStatuses[file.name] === "error") {
+        await uploadSingleFile(file, i);
       }
-    } catch (err: any) {
-      setUploadError("Terjadi kesalahan koneksi saat mengunggah dokumen.");
-      setUploadErrorDetails(err.message || null);
-    } finally {
-      setIsUploading(false);
     }
+
+    setIsUploading(false);
+    setCurrentUploadIndex(-1);
+    setUploadProgress(0);
+    setUploadSuccess("Proses upload batch selesai!");
+
+    // Clean up successful files from the active list
+    setUploadFiles(prev => prev.filter(f => uploadStatuses[f.name] !== "success"));
+
+    fetchMonths();
+    fetchHistory();
   };
 
   // Edit Month Rename
@@ -603,9 +784,9 @@ export default function AdminPage() {
 
             <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
               <div className="text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider mb-2 mt-4 ml-2">Manajemen Utama</div>
-              <button onClick={() => setActiveTab("database")}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "database" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
-                <Database className="w-4 h-4" /> Kelola Database
+              <button onClick={() => setActiveTab("explorer")}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "explorer" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
+                <BarChart3 className="w-4 h-4" /> Data Explorer
               </button>
               <button onClick={() => setActiveTab("upload")}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "upload" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
@@ -615,8 +796,6 @@ export default function AdminPage() {
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "history" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
                 <Clock className="w-4 h-4" /> Riwayat Upload
               </button>
-
-              <div className="text-[10px] font-bold text-[#8E8E95] uppercase tracking-wider mb-2 mt-8 ml-2">Advanced Setting</div>
               <button onClick={() => setActiveTab("edit")}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${activeTab === "edit" ? "bg-cyan-500/10 text-cyan-400" : "text-[#8E8E95] hover:bg-[#131316] hover:text-white"}`}>
                 <Code className="w-4 h-4" /> Editor JSON
@@ -642,84 +821,106 @@ export default function AdminPage() {
               {/* DYNAMIC HEADER */}
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-white tracking-tight">
-                  {activeTab === "database" && "Kelola Database Bulanan"}
+                  {activeTab === "explorer" && "Data Explorer"}
                   {activeTab === "upload" && "Upload & Integrasi Data"}
                   {activeTab === "history" && "Log Riwayat Upload"}
                   {activeTab === "edit" && "Editor Konfigurasi JSON"}
                 </h2>
                 <p className="text-[#8E8E95] mt-1 text-sm">
-                  {activeTab === "database" && "Manajemen record bulan yang tersimpan di sistem Supabase."}
+                  {activeTab === "explorer" && "Lihat data yang sudah dipetakan otomatis dari dokumen."}
                   {activeTab === "edit" && "Modifikasi langsung payload JSON untuk kalibrasi metrik dashboard."}
                 </p>
               </div>
 
-              {/* ========== TAB: DATABASE ========== */}
-              {activeTab === "database" && (
-                <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-6 shadow-sm">
-                  <div className="mb-6 flex justify-between items-center">
-                    <div>
-                      <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                        <Database className="h-5 w-5 text-cyan-400" />
-                        Bulan yang Terdaftar
-                      </h2>
-                      <p className="text-sm text-[#8E8E95] mt-1">Daftar bulan yang tersimpan di database</p>
+              {/* ========== TAB: DATA EXPLORER ========== */}
+              {activeTab === "explorer" && (
+                <div className="space-y-6 max-w-6xl">
+
+                  {/* Month Selector */}
+                  <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-5 flex flex-col sm:flex-row items-end gap-4 shadow-sm">
+                    <div className="flex-1 w-full">
+                      <label className="text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2 block">
+                        Pilih Bulan
+                      </label>
+                      <select
+                        value={explorerMonth}
+                        onChange={(e) => {
+                          setExplorerMonth(e.target.value);
+                          if (e.target.value) fetchExplorerData(e.target.value);
+                        }}
+                        className="w-full bg-[#131316] border border-[#1F1F23] rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-cyan-500 transition-colors appearance-none cursor-pointer"
+                      >
+                        <option value="">-- Pilih Dataset --</option>
+                        {months.map((m) => (
+                          <option key={m.key} value={m.key}>
+                            {m.name} ({m.key})
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                    <button onClick={fetchMonths} disabled={isFetchingMonths}
-                      className="p-2 text-[#8E8E95] hover:text-white rounded-xl bg-[#131316] border border-[#1F1F23] transition-colors" title="Refresh">
-                      <RefreshCw className={`h-4 w-4 ${isFetchingMonths ? "animate-spin text-cyan-400" : ""}`} />
-                    </button>
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="flex gap-1.5 flex-wrap">
+                        {(["all", "shopee", "tiktok", "meta", "website"] as const).map((ch) => (
+                          <button
+                            key={ch}
+                            onClick={() => setActiveChannel(ch)}
+                            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all uppercase ${
+                              activeChannel === ch
+                                ? ch === "all"
+                                  ? "bg-white/10 text-white border border-white/20"
+                                  : ch === "shopee"
+                                  ? "bg-[#EE4D2D]/20 text-[#EE4D2D] border border-[#EE4D2D]/30"
+                                  : ch === "tiktok"
+                                  ? "bg-white/10 text-white border border-white/20"
+                                  : ch === "meta"
+                                  ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                                  : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                                : "text-[#8E8E95] hover:text-white border border-transparent"
+                            }`}
+                          >
+                            {ch === "all" ? "All" : ch.charAt(0).toUpperCase() + ch.slice(1)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
-                  {monthError && (
-                    <div className="mb-6 flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs font-medium text-rose-400">
-                      <AlertTriangle className="h-4 w-4 shrink-0" /><span>{monthError}</span>
+                  {explorerError && (
+                    <div className="flex items-center gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm font-medium text-rose-400">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span>{explorerError}</span>
                     </div>
                   )}
 
-                  {isFetchingMonths && months.length === 0 ? (
+                  {isFetchingExplorer && (
                     <div className="py-16 flex flex-col items-center text-center space-y-3">
                       <RefreshCw className="h-8 w-8 text-cyan-400 animate-spin" />
                       <p className="text-sm text-[#8E8E95]">Memuat data...</p>
                     </div>
-                  ) : months.length === 0 ? (
+                  )}
+
+                  {explorerMonthData && !isFetchingExplorer && (
+                    <DataExplorer
+                      monthData={explorerMonthData}
+                      monthKey={explorerMonth}
+                      monthName={explorerMonthName}
+                      activeChannel={activeChannel}
+                      onRefresh={() => fetchExplorerData(explorerMonth)}
+                    />
+                  )}
+
+                  {!explorerMonth && !isFetchingExplorer && !explorerError && (
                     <div className="py-16 flex flex-col items-center text-center space-y-4 rounded-xl border border-dashed border-[#1F1F23] bg-[#131316]/40 p-8">
-                      <Database className="h-10 w-10 text-[#8E8E95]" />
-                      <h3 className="text-sm font-bold text-white">Database Kosong</h3>
-                      <p className="text-xs text-[#8E8E95] max-w-sm">Belum ada data. Upload dokumen via tab Upload Data.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left">
-                        <thead>
-                          <tr className="border-b border-[#1F1F23]">
-                            <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Month Key</th>
-                            <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Nama Bulan</th>
-                            <th className="py-3 px-4 text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Aksi</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[#1F1F23]">
-                          {months.map((m) => (
-                            <tr key={m.key} className="hover:bg-[#131316]/40 transition-colors">
-                              <td className="py-4 px-4 text-sm font-mono text-cyan-400">{m.key}</td>
-                              <td className="py-4 px-4 text-sm font-bold text-white">{m.name}</td>
-                              <td className="py-4 px-4 text-sm space-x-2">
-                                <button onClick={() => { setEditingMonth(m); setEditName(m.name); setEditError(null); }}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-[#1F1F23] bg-[#131316] px-3 py-1.5 text-xs text-[#8E8E95] hover:text-white transition-colors">
-                                  <Edit className="h-3 w-3" />Ubah Nama
-                                </button>
-                                <button onClick={() => { setDeletingMonth(m); setDeleteError(null); }}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/20 transition-colors">
-                                  <Trash2 className="h-3 w-3" />Hapus
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      <BarChart3 className="h-10 w-10 text-[#8E8E95]" />
+                      <h3 className="text-sm font-bold text-white">Pilih Data Bulanan</h3>
+                      <p className="text-xs text-[#8E8E95] max-w-sm">
+                        Pilih bulan dari menu di atas untuk melihat data yang sudah dipetakan secara otomatis.
+                      </p>
                     </div>
                   )}
                 </div>
               )}
+
 
               {/* ========== TAB: UPLOAD ========== */}
               {activeTab === "upload" && (
@@ -729,84 +930,248 @@ export default function AdminPage() {
                       <UploadCloud className="h-5 w-5 text-cyan-400" />
                       Upload & Konsolidasi Dokumen
                     </h2>
-                    <p className="text-sm text-[#8E8E95] mt-1">Unggah file laporan bulanan (Excel/CSV) untuk memperbarui dashboard</p>
+                    <p className="text-sm text-[#8E8E95] mt-1">
+                      Unggah file laporan bulanan (Excel/CSV). Platform & kategori akan terdeteksi otomatis.
+                    </p>
+                  </div>
+
+                  {/* Auto-detect Toggle */}
+                  <div className="mb-6 flex items-center gap-3 px-4 py-3 bg-[#131316] rounded-xl border border-[#1F1F23]">
+                    <button
+                      onClick={() => setAutoDetect(!autoDetect)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        autoDetect ? "bg-cyan-500" : "bg-[#27272A]"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          autoDetect ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white">Auto-Detect</span>
+                        {autoDetect && (
+                          <span className="text-[10px] px-2 py-0.5 bg-cyan-500/10 text-cyan-400 rounded-full border border-cyan-500/20">
+                            AKTIF
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-[#8E8E95] mt-0.5">
+                        {autoDetect
+                          ? "Platform, kategori, dan bulan akan terdeteksi otomatis dari file."
+                          : "Pilih platform, kategori, dan bulan secara manual."}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Platform</label>
-                        <select value={uploadPlatform} onChange={(e) => handlePlatformChange(e.target.value)}
-                          className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
-                          <option value="Shopee">Shopee</option>
-                          <option value="TikTok">TikTok Shop</option>
-                          <option value="Meta">Meta Ads</option>
-                          <option value="Website">Website</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Jenis Dokumen</label>
-                        <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)}
-                          className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
-                          {getCategoriesForPlatform(uploadPlatform).map((cat) => (
-                            <option key={cat.key} value={cat.key}>{cat.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Bulan</label>
-                          <select value={uploadMonth} onChange={(e) => setUploadMonth(e.target.value)}
-                            className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
-                            {["januari","februari","maret","april","mei","juni","juli","agustus","september","oktober","november","desember"].map((m) => (
-                              <option key={m} value={m}>{m.charAt(0).toUpperCase() + m.slice(1)}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Tahun</label>
-                          <select value={uploadYear} onChange={(e) => setUploadYear(e.target.value)}
-                            className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
-                            <option value="2026">2026</option>
-                          </select>
-                        </div>
-                      </div>
+                      {!autoDetect && (
+                        <>
+                          <div>
+                            <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Platform</label>
+                            <select value={uploadPlatform} onChange={(e) => { setUploadPlatform(e.target.value); setUploadCategory(""); }}
+                              className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
+                              <option value="">-- Pilih Platform --</option>
+                              <option value="Shopee">Shopee</option>
+                              <option value="TikTok">TikTok Shop</option>
+                              <option value="Meta">Meta Ads</option>
+                              <option value="Website">Website</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Jenis Dokumen</label>
+                            <select value={uploadCategory} onChange={(e) => setUploadCategory(e.target.value)}
+                              className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
+                              <option value="">-- Pilih Kategori --</option>
+                              {getCategoriesForPlatform(uploadPlatform).map((cat) => (
+                                <option key={cat.key} value={cat.key}>{cat.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Bulan</label>
+                              <select value={uploadMonth} onChange={(e) => setUploadMonth(e.target.value)}
+                                className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
+                                {["","januari","februari","maret","april","mei","juni","juli","agustus","september","oktober","november","desember"].map((m) => (
+                                  <option key={m} value={m}>{m ? m.charAt(0).toUpperCase() + m.slice(1) : "--Pilih Bulan--"}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">Tahun</label>
+                              <select value={uploadYear} onChange={(e) => setUploadYear(e.target.value)}
+                                className="w-full rounded-xl border border-[#1F1F23] bg-[#131316] px-4 py-3 text-sm text-white outline-none focus:border-cyan-500 transition-colors">
+                                <option value="2026">2026</option>
+                              </select>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
                     </div>
 
-                    <div className="flex flex-col justify-between">
-                      <div>
-                        <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">File Laporan</label>
-                        {!uploadFile ? (
-                          <div onClick={() => document.getElementById("file-input")?.click()}
-                            className="border-2 border-dashed border-[#1F1F23] hover:border-cyan-500/30 hover:bg-cyan-500/5 rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all h-[190px]">
-                            <UploadCloud className="h-10 w-10 text-[#8E8E95] mb-3" />
-                            <p className="text-sm font-semibold text-white">Pilih file excel/csv</p>
-                            <p className="text-xs text-[#8E8E95] mt-1">{uploadCategory === "Shp Ads" ? ".csv" : ".xlsx"}</p>
-                            <input id="file-input" type="file" className="hidden" accept={uploadCategory === "Shp Ads" ? ".csv" : ".xlsx"}
-                              onChange={(e) => { if (e.target.files?.[0]) { setUploadFile(e.target.files[0]); setUploadError(null); } }} />
+                      {/* Drag & Drop zone and file list */}
+                      <div className="md:col-span-2 space-y-4">
+                        <label className="block text-xs font-bold text-[#8E8E95] uppercase tracking-wider mb-2">File Laporan (Batch Upload & Drag & Drop)</label>
+                        
+                        <div
+                          onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                          onDragLeave={() => setIsDragging(false)}
+                          onDrop={handleFolderDrop}
+                          onClick={() => document.getElementById("file-input")?.click()}
+                          className={`border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                            isDragging 
+                              ? "border-cyan-400 bg-cyan-500/10 shadow-[0_0_20px_rgba(6,182,212,0.15)]" 
+                              : "border-[#1F1F23] hover:border-cyan-500/30 hover:bg-cyan-500/5"
+                          } min-h-[190px]`}
+                        >
+                          <UploadCloud className={`h-12 w-12 mb-3 transition-transform ${isDragging ? "scale-110 text-cyan-400" : "text-[#8E8E95]"}`} />
+                          <p className="text-sm font-semibold text-white">Drag & drop file laporan atau folder di sini</p>
+                          <p className="text-xs text-[#8E8E95] mt-1">Support multiple file & folder — auto-detect (.xlsx, .csv)</p>
+                          <div className="flex gap-3 mt-5">
+                            <input id="file-input" type="file" className="hidden" accept=".xlsx,.xls,.csv" multiple={true}
+                              onChange={(e) => handleFilesSelect(e.target.files)} />
+                            <input id="folder-input" type="file" className="hidden" {...{ webkitdirectory: "" } as any} multiple={true}
+                              onChange={(e) => {
+                                const files = e.target.files ? Array.from(e.target.files) : [];
+                                if (files.length > 0) addFilesToQueue(files);
+                              }} />
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); document.getElementById("file-input")?.click(); }}
+                              className="px-4 py-2 bg-[#131316] border border-[#1F1F23] rounded-xl text-xs font-semibold text-white hover:border-cyan-500/50 transition-colors"
+                            >
+                              Pilih File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); document.getElementById("folder-input")?.click(); }}
+                              className="px-4 py-2 bg-[#131316] border border-[#1F1F23] rounded-xl text-xs font-semibold text-white hover:border-cyan-500/50 transition-colors flex items-center gap-1.5"
+                            >
+                              <UploadCloud className="w-3.5 h-3.5" /> Pilih Folder
+                            </button>
                           </div>
-                        ) : (
-                          <div className="border border-[#1F1F23] bg-[#131316] rounded-2xl p-4 flex items-center justify-between h-[190px]">
-                            <div className="flex items-center gap-3">
-                              <div className="p-3 bg-cyan-500/10 rounded-xl"><FileText className="h-8 w-8 text-cyan-400" /></div>
-                              <div className="text-left">
-                                <p className="text-sm font-semibold text-white max-w-[160px] truncate" title={uploadFile.name}>{uploadFile.name}</p>
-                                <p className="text-xs text-[#8E8E95] mt-0.5">{(uploadFile.size / 1024).toFixed(1)} KB</p>
-                              </div>
+                        </div>
+
+                        {/* Selected Files Queue */}
+                        {uploadFiles.length > 0 && (
+                          <div className="bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-5 space-y-4 shadow-xl">
+                            <div className="flex justify-between items-center pb-2 border-b border-[#1F1F23]">
+                              <span className="text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Antrean Berkas ({uploadFiles.length} file)</span>
+                              <button 
+                                onClick={() => { setUploadFiles([]); setUploadStatuses({}); setUploadResults([]); }} 
+                                disabled={isUploading}
+                                className="text-xs font-bold text-rose-400 hover:text-rose-300 disabled:opacity-50 transition-colors"
+                              >
+                                Bersihkan Antrean
+                              </button>
                             </div>
-                            <button onClick={() => setUploadFile(null)} className="p-2 text-[#8E8E95] hover:text-rose-500 rounded-xl transition-all"><Trash2 className="h-5 w-5" /></button>
+
+                            <div className="space-y-2 max-h-[220px] overflow-y-auto custom-scrollbar pr-1">
+                              {uploadFiles.map((file, index) => {
+                                const status = uploadStatuses[file.name] || "waiting";
+                                return (
+                                  <div key={file.name} className="flex items-center justify-between p-3 bg-[#131316] border border-[#1F1F23] rounded-xl text-xs">
+                                    <div className="flex items-center gap-3 truncate max-w-[70%]">
+                                      <FileText className={`h-5 w-5 shrink-0 ${
+                                        status === "success" ? "text-emerald-400" : status === "error" ? "text-rose-400" : "text-cyan-400"
+                                      }`} />
+                                      <div className="truncate text-left">
+                                        <p className="text-white font-mono truncate" title={file.name}>{file.name}</p>
+                                        <p className="text-[10px] text-[#8E8E95]">{(file.size / 1024).toFixed(1)} KB</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      {/* Status Badges */}
+                                      {status === "waiting" && (
+                                        <span className="px-2 py-0.5 rounded bg-gray-500/10 text-[#8E8E95] font-bold text-[9px] uppercase border border-gray-500/20">Antre</span>
+                                      )}
+                                      {status === "uploading" && (
+                                        <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 font-bold text-[9px] uppercase border border-cyan-500/20 animate-pulse flex items-center gap-1">
+                                          <RefreshCw className="w-2.5 h-2.5 animate-spin" /> {uploadProgress}%
+                                        </span>
+                                      )}
+                                      {status === "success" && (
+                                        <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold text-[9px] uppercase border border-emerald-500/20">Selesai</span>
+                                      )}
+                                      {status === "error" && (
+                                        <span className="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 font-bold text-[9px] uppercase border border-rose-500/20">Gagal</span>
+                                      )}
+
+                                      <button 
+                                        onClick={() => {
+                                          setUploadFiles(prev => prev.filter(f => f.name !== file.name));
+                                          setUploadStatuses(prev => {
+                                            const next = { ...prev };
+                                            delete next[file.name];
+                                            return next;
+                                          });
+                                        }}
+                                        disabled={isUploading}
+                                        className="p-1 text-[#8E8E95] hover:text-rose-400 rounded-md transition-all disabled:opacity-30 shrink-0"
+                                        title="Hapus berkas dari antrean"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Batch upload loading progress bar */}
+                            {isUploading && currentUploadIndex !== -1 && (
+                              <div className="pt-2 border-t border-[#1F1F23] space-y-2">
+                                <div className="flex justify-between text-[10px] text-[#8E8E95]">
+                                  <span>Mengunggah file {currentUploadIndex + 1} dari {uploadFiles.length}: <strong>{uploadFiles[currentUploadIndex].name}</strong></span>
+                                  <span className="font-mono text-cyan-400">{uploadProgress}%</span>
+                                </div>
+                                <div className="w-full bg-[#131316] rounded-full h-1.5 overflow-hidden border border-[#1F1F23]">
+                                  <div 
+                                    className="bg-cyan-500 h-1.5 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(6,182,212,0.5)]" 
+                                    style={{ width: `${uploadProgress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Actions bar */}
+                            <div className="flex justify-end pt-2 border-t border-[#1F1F23]">
+                              <button 
+                                onClick={handleUploadSubmit} 
+                                disabled={isUploading}
+                                className="rounded-xl bg-cyan-500 hover:bg-cyan-400 px-5 py-2.5 text-xs font-bold text-black shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                              >
+                                {isUploading ? (
+                                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />Memproses Batch ({currentUploadIndex + 1}/{uploadFiles.length})...</>
+                                ) : (
+                                  <><UploadCloud className="h-3.5 w-3.5" />Mulai Upload Batch ({uploadFiles.filter(f => uploadStatuses[f.name] !== "success").length} file)</>
+                                )}
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
-                    </div>
                   </div>
 
-                  {uploadFile && (
-                    <div className="mt-6 flex justify-end">
-                      <button onClick={handleUploadSubmit} disabled={isUploading}
-                        className="rounded-xl bg-cyan-500 hover:bg-cyan-400 px-6 py-3 text-sm font-bold text-black shadow-lg transition-colors disabled:opacity-50 flex items-center gap-2">
-                        {isUploading ? <><RefreshCw className="h-4 w-4 animate-spin" />Memproses...</> : <><UploadCloud className="h-4 w-4" />Upload & Sinkronisasi</>}
-                      </button>
+                  {/* Summary Results Console */}
+                  {uploadResults.length > 0 && (
+                    <div className="mt-6 bg-[#0B0B0C] border border-[#1F1F23] rounded-2xl p-5 shadow-sm space-y-3">
+                      <h4 className="text-xs font-bold text-[#8E8E95] uppercase tracking-wider">Hasil Pemrosesan Dokumen</h4>
+                      <div className="bg-[#060608] border border-[#1F1F23] rounded-xl p-4 font-mono text-[10px] space-y-1 max-h-[160px] overflow-y-auto text-left custom-scrollbar">
+                        {uploadResults.map((res, i) => {
+                          const isError = res.startsWith("Gagal");
+                          return (
+                            <div key={i} className={isError ? "text-rose-400" : "text-emerald-400"}>
+                              {res}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
 

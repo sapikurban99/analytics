@@ -293,8 +293,8 @@ export default function Home() {
           {activeTab === "shopee-channel" && <ShopeeChannelAnalyz dashboardData={dashboardData} />}
           {activeTab === "shopee-affiliate" && <ShopeeAffiliateAnalyz dashboardData={dashboardData} />}
 
-          {activeTab === "website" && <WebsiteOverview />}
-          {activeTab === "meta-ads" && <MetaAdsPerformance />}
+          {activeTab === "website" && <WebsiteOverview dashboardData={dashboardData} />}
+          {activeTab === "meta-ads" && <MetaAdsPerformance dashboardData={dashboardData} />}
 
         </main>
       </div>

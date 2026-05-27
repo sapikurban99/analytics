@@ -4,315 +4,240 @@ import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { supabase, supabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { aggregateAllMonths, upsertMetricsToSupabase } from "@/lib/data/aggregate";
 
 const execPromise = promisify(exec);
 
+const MONTH_NAMES_ID = [
+  "januari", "februari", "maret", "april", "mei", "juni",
+  "juli", "agustus", "september", "oktober", "november", "desember",
+];
+
+async function processFile(filePath: string, workspaceRoot: string) {
+  const scriptPath = path.join(workspaceRoot, "lib/data/process_file.py");
+  const { stdout } = await execPromise(`python3 "${scriptPath}" "${filePath}"`, {
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: 30000,
+  });
+  return JSON.parse(stdout);
+}
+
+function detectMonthFromFilename(filename: string): { month: string; year: string } | null {
+  const lower = filename.toLowerCase();
+
+  for (const m of MONTH_NAMES_ID) {
+    const re = new RegExp(`${m}\\s*(202\\d)`);
+    const match = lower.match(re);
+    if (match) {
+      return { month: m, year: match[1] };
+    }
+  }
+  for (const m of MONTH_NAMES_ID) {
+    const re = new RegExp(`${m}(202\\d)`);
+    const match = lower.match(re);
+    if (match) {
+      return { month: m, year: match[1] };
+    }
+  }
+
+  const rangeMatch = lower.match(/\((\d{4})-(\d{2})\d*-\d+\s*-\s*\d{4}-\d{2}\d*-\d+\)/);
+  if (rangeMatch) {
+    const year = rangeMatch[1];
+    const monthNum = rangeMatch[2];
+    const monthsMapRev: Record<string, string> = {
+      "01": "januari", "02": "februari", "03": "maret", "04": "april",
+      "05": "mei", "06": "juni", "07": "juli", "08": "agustus",
+      "09": "september", "10": "oktober", "11": "november", "12": "desember"
+    };
+    const month = monthsMapRev[monthNum];
+    if (month) {
+      return { month, year };
+    }
+  }
+
+  return null;
+}
+
+async function logUploadHistory(
+  platform: string,
+  category: string,
+  month: string,
+  year: string,
+  filename: string,
+  size: number,
+  status: "Berhasil" | "Gagal",
+  errorMsg?: string
+) {
+  const uploadId = `upl_${Date.now()}`;
+  const timestamp = new Date().toISOString();
+  const monthDisplay = month.charAt(0).toUpperCase() + month.slice(1);
+
+  try {
+    const workspaceRoot = process.cwd();
+    const historyPath = path.join(workspaceRoot, "lib/data/upload_history.json");
+    let historyData: any = { uploads: [] };
+    if (fs.existsSync(historyPath)) {
+      historyData = JSON.parse(fs.readFileSync(historyPath, "utf-8"));
+    }
+    historyData.uploads.unshift({
+      id: uploadId, timestamp, platform, category, month: monthDisplay,
+      year, filename, sizeBytes: size, status,
+      errorMessage: errorMsg || null
+    });
+    fs.writeFileSync(historyPath, JSON.stringify(historyData, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Failed to write local upload history:", err);
+  }
+
+  if (supabaseAdmin) {
+    try {
+      await supabaseAdmin.from("tomeame_upload_history").insert({
+        id: uploadId, timestamp, platform, category, month: monthDisplay,
+        year, filename, size_bytes: size, status,
+        error_message: errorMsg || null
+      });
+    } catch (err: any) {
+      console.error("Error inserting to Supabase:", err.message || err);
+    }
+  }
+}
+
 export async function POST(req: NextRequest) {
+  let tmpPath = "";
+
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File;
-    const platform = formData.get("platform") as string;
-    const category = formData.get("category") as string;
-    const month = formData.get("month") as string; // lowercase, e.g. "januari"
-    const year = formData.get("year") as string || "2026";
 
-    if (!file || !platform || !category || !month) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "Missing file" }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-
-    // Setup folder map & prefix map
-    let platformDir = "";
-    if (platform.toLowerCase() === "shopee") platformDir = "Shopee";
-    else if (platform.toLowerCase() === "tiktok") platformDir = "Tiktok";
-    else if (platform.toLowerCase() === "meta") platformDir = "Meta";
-    else if (platform.toLowerCase() === "website") platformDir = "Website";
-    else {
-      return NextResponse.json({ error: "Invalid platform" }, { status: 400 });
-    }
-
-    let categoryDir = category;
-    let filenamePrefix = "";
-    let expectedExt = "";
-
-    // Shopee Map
-    if (platformDir === "Shopee") {
-      if (category === "Shp Ads") {
-        categoryDir = "Shp Ads";
-        filenamePrefix = "shp ads";
-        expectedExt = ".csv";
-      } else if (category === "Shp Affiliate") {
-        categoryDir = "Shp Affiliate";
-        filenamePrefix = "shp affiliate";
-        expectedExt = ".xlsx";
-      } else if (category === "Shp Overview Metriks") {
-        categoryDir = "Shp Overview Metriks "; // Note the space in original folder name
-        filenamePrefix = "shp overview metriks";
-        expectedExt = ".xlsx";
-      } else if (category === "Shp Product Performance") {
-        categoryDir = "Shp Product Performance";
-        filenamePrefix = "shp product performance";
-        expectedExt = ".xlsx";
-      } else {
-        return NextResponse.json({ error: "Invalid Shopee category" }, { status: 400 });
-      }
-    }
-
-    // Tiktok Map
-    if (platformDir === "Tiktok") {
-      if (category === "Tts Gmv Max Live Ads") {
-        categoryDir = "Tts Gmv Max Ads";
-        filenamePrefix = "tts gmv max live ";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Gmv Max Product Ads") {
-        categoryDir = "Tts Gmv Max Ads";
-        filenamePrefix = "tts gmv max product ";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Live Affiliate") {
-        categoryDir = "Tts Live Affiliate";
-        filenamePrefix = "tts live affiliate";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Live Seller") {
-        categoryDir = "Tts Live Seller";
-        filenamePrefix = "tts live seller";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Overview Metriks") {
-        categoryDir = "Tts Overview Metriks";
-        filenamePrefix = "tts overview";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Product Affiliate") {
-        categoryDir = "Tts Product Affiliate";
-        filenamePrefix = "tts product affiliate ";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Product List") {
-        categoryDir = "Tts Product List";
-        filenamePrefix = "tts product list";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Product card Seller") {
-        categoryDir = "Tts Product card Seller";
-        filenamePrefix = "tts product card";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Video Affiliate") {
-        categoryDir = "Tts Video Affiliate";
-        filenamePrefix = "tts video affiliate";
-        expectedExt = ".xlsx";
-      } else if (category === "Tts Video Seller") {
-        categoryDir = "Tts Video Seller";
-        filenamePrefix = "tts video seller";
-        expectedExt = ".xlsx";
-      } else {
-        return NextResponse.json({ error: "Invalid TikTok category" }, { status: 400 });
-      }
-    }
-
-    // Meta Map
-    if (platformDir === "Meta") {
-      if (category === "CPAS") {
-        categoryDir = "CPAS";
-        filenamePrefix = "cpas";
-        expectedExt = file.name.endsWith(".csv") ? ".csv" : ".xlsx";
-      } else if (category === "Meta Regular") {
-        categoryDir = "Meta Regular";
-        filenamePrefix = "meta regular";
-        expectedExt = file.name.endsWith(".csv") ? ".csv" : ".xlsx";
-      } else {
-        return NextResponse.json({ error: "Invalid Meta category" }, { status: 400 });
-      }
-    }
-
-    // Website Map
-    if (platformDir === "Website") {
-      if (category === "Overview Website") {
-        categoryDir = "Overview Website";
-        filenamePrefix = "overview website";
-        expectedExt = file.name.endsWith(".csv") ? ".csv" : ".xlsx";
-      } else {
-        return NextResponse.json({ error: "Invalid Website category" }, { status: 400 });
-      }
-    }
-
-    // File suffix naming logic
-    const ext = file.name.endsWith(".csv") ? ".csv" : ".xlsx";
-    if (ext !== expectedExt) {
-      return NextResponse.json({ error: `Format file tidak sesuai. Kategori ini membutuhkan file ${expectedExt}` }, { status: 400 });
-    }
-
-    const monthLower = month.toLowerCase().trim();
-    const finalFilename = `${filenamePrefix}_${monthLower} ${year}${ext}`;
     const workspaceRoot = process.cwd();
-    const targetDir = path.join(workspaceRoot, "dokumen", platformDir, categoryDir);
-    
-    // Ensure dir exists
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+
+    const tmpDir = path.join(workspaceRoot, "dokumen", "_tmp");
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+    tmpPath = path.join(tmpDir, file.name);
+    fs.writeFileSync(tmpPath, buffer);
+
+    let results: any[];
+    try {
+      const raw = await processFile(tmpPath, workspaceRoot);
+      // process_file.py now returns an array (multi-month split) or single-object array
+      results = Array.isArray(raw) ? raw : [raw];
+    } catch (procErr: any) {
+      console.error("process_file.py failed:", procErr.stderr || procErr.message);
+      const errorMsg = procErr.stderr || procErr.message || "Gagal memproses file";
+      await logUploadHistory("", "", "", "", file.name, buffer.length, "Gagal", errorMsg);
+      return NextResponse.json({
+        error: "Gagal memproses file. Pastikan format file sesuai.",
+        details: errorMsg
+      }, { status: 500 });
     }
 
-    const targetFilePath = path.join(targetDir, finalFilename);
+    if (results.length === 0 || results[0].error) {
+      const errMsg = results[0]?.error || "Unknown error";
+      await logUploadHistory("", "", "", "", file.name, buffer.length, "Gagal", errMsg);
+      return NextResponse.json({
+        error: "Gagal mendeteksi dokumen. Pastikan nama file sesuai format.",
+        details: errMsg
+      }, { status: 400 });
+    }
 
-    // Save history log helper
-    const logUpload = async (status: "Berhasil" | "Gagal", size: number, errorMsg?: string) => {
-      const uploadId = `upl_${Date.now()}`;
-      const timestamp = new Date().toISOString();
-      const monthDisplay = monthLower.charAt(0).toUpperCase() + monthLower.slice(1);
+    let insertedCount = 0;
+    for (const result of results) {
+      const { platform, category, data_type, month_key, month_name, filename, size_bytes, data } = result;
 
-      // Local write (fallback/backup)
-      try {
-        const historyPath = path.join(workspaceRoot, "lib/data/upload_history.json");
-        let historyData = { uploads: [] };
-        if (fs.existsSync(historyPath)) {
-          const raw = fs.readFileSync(historyPath, "utf-8");
-          historyData = JSON.parse(raw);
-        }
-        
-        const newUpload = {
-          id: uploadId,
-          timestamp,
+      if (supabaseAdmin) {
+        const { error: insertErr } = await supabaseAdmin.from("tomeame_file_data").insert({
           platform,
           category,
-          month: monthDisplay,
-          year,
-          filename: finalFilename,
-          sizeBytes: size,
-          status,
-          errorMessage: errorMsg || null
-        };
-        
-        historyData.uploads.unshift(newUpload as never);
-        fs.writeFileSync(historyPath, JSON.stringify(historyData, null, 2), "utf-8");
-      } catch (err) {
-        console.error("Failed to write to local upload history:", err);
-      }
+          data_type,
+          month_key,
+          month_name,
+          filename,
+          data,
+          size_bytes,
+          uploaded_at: new Date().toISOString(),
+          status: "berhasil",
+        });
 
-      // Supabase write
-      if (supabaseAdmin) {
-        try {
-          const { error } = await supabaseAdmin
-            .from("tomeame_upload_history")
-            .insert({
-              id: uploadId,
-              timestamp,
-              platform,
-              category,
-              month: monthDisplay,
-              year,
-              filename: finalFilename,
-              size_bytes: size,
-              status,
-              error_message: errorMsg || null
-            });
-          if (error) {
-            console.error("Failed to insert upload history to Supabase:", error.message);
-          } else {
-            console.log("Successfully inserted upload history to Supabase!");
-          }
-        } catch (err: any) {
-          console.error("Error inserting upload history to Supabase:", err.message || err);
+        if (insertErr) {
+          console.error(`Failed to insert file_data for ${month_key}:`, insertErr.message);
+          continue;
         }
       }
-    };
-
-    // Keep a backup of the old file if it already exists
-    let backupPath = "";
-    if (fs.existsSync(targetFilePath)) {
-      backupPath = targetFilePath + ".bak";
-      fs.copyFileSync(targetFilePath, backupPath);
+      insertedCount++;
     }
 
-    // Write file
-    fs.writeFileSync(targetFilePath, buffer);
+    if (insertedCount === 0) {
+      return NextResponse.json({
+        error: "Gagal menyimpan data ke database.",
+        details: "No rows inserted"
+      }, { status: 500 });
+    }
 
-    // Run Python script
+    if (supabaseAdmin) {
+      try {
+        const months = await aggregateAllMonths();
+        if (months) {
+          await upsertMetricsToSupabase(months);
+        }
+      } catch (aggErr: any) {
+        console.error("Aggregation failed:", aggErr.message || aggErr);
+      }
+    }
+
+    const firstResult = results[0];
     try {
-      const scriptPath = path.join(workspaceRoot, "lib/data/consolidate.py");
-      const { stdout, stderr } = await execPromise(`python3 "${scriptPath}"`);
-      console.log("ETL output:", stdout);
-      
-      // Cleanup backup if success
-      if (backupPath) {
-        fs.unlinkSync(backupPath);
-      }
-
-      // --- SYNC METRICS JSON TO SUPABASE ---
-      if (supabaseAdmin) {
-        try {
-          const consolidatedPath = path.join(workspaceRoot, "lib/data/consolidated_metrics.json");
-          if (fs.existsSync(consolidatedPath)) {
-            const rawMetrics = fs.readFileSync(consolidatedPath, "utf-8");
-            const parsedMetrics = JSON.parse(rawMetrics);
-            
-            if (parsedMetrics.months) {
-              console.log("Syncing consolidated metrics to Supabase tomeame_metrics...");
-              for (const monthKey of Object.keys(parsedMetrics.months)) {
-                const monthData = parsedMetrics.months[monthKey];
-                const { month_name, ...otherData } = monthData;
-                
-                const { error } = await supabaseAdmin
-                  .from("tomeame_metrics")
-                  .upsert({
-                    month_key: monthKey,
-                    month_name: month_name,
-                    data: otherData,
-                    updated_at: new Date().toISOString()
-                  });
-                
-                if (error) {
-                  console.error(`Failed to upsert month ${monthKey} to Supabase:`, error.message);
-                } else {
-                  console.log(`Successfully synced month ${monthKey} to Supabase!`);
-                }
-              }
-            }
-          }
-        } catch (syncErr: any) {
-          console.error("Failed to sync consolidated metrics to Supabase:", syncErr.message || syncErr);
-        }
-      }
-
-      await logUpload("Berhasil", buffer.length);
-      return NextResponse.json({ success: true, message: "File uploaded and consolidated successfully!" });
-    } catch (etlError: any) {
-      console.error("ETL execution failed:", etlError);
-      
-      // Restore backup or delete failed upload
-      if (backupPath) {
-        fs.copyFileSync(backupPath, targetFilePath);
-        fs.unlinkSync(backupPath);
-      } else {
-        if (fs.existsSync(targetFilePath)) {
-          fs.unlinkSync(targetFilePath);
-        }
-      }
-
-      const errorMsg = etlError.stderr || etlError.message || "Error during data consolidation";
-      await logUpload("Gagal", buffer.length, errorMsg);
-      return NextResponse.json({ error: "Gagal memproses/mengkonsolidasi data. Pastikan format file Excel/CSV sesuai.", details: errorMsg }, { status: 500 });
+      const monthYear = detectMonthFromFilename(firstResult.filename) ||
+        { month: firstResult.month_name.toLowerCase(), year: firstResult.month_key.split("-")[0] };
+      await logUploadHistory(
+        firstResult.platform, firstResult.category,
+        monthYear.month, monthYear.year,
+        firstResult.filename, firstResult.size_bytes, "Berhasil"
+      );
+    } catch (logErr) {
+      console.error("Upload history logging failed:", logErr);
     }
 
+    return NextResponse.json({
+      success: true,
+      detected: {
+        platform: firstResult.platform,
+        category: firstResult.category,
+        data_type: firstResult.data_type,
+      },
+      months: results.map(r => ({ month_key: r.month_key, month_name: r.month_name })),
+      message: insertedCount > 1
+        ? `File di-split ke ${insertedCount} bulan dan disimpan ke database!`
+        : "File processed and synced to database!",
+    });
   } catch (error: any) {
     console.error("General API error:", error);
     return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
+  } finally {
+    if (tmpPath && fs.existsSync(tmpPath)) {
+      try { fs.unlinkSync(tmpPath); } catch (_) {}
+    }
   }
 }
 
-// GET method to fetch upload history
 export async function GET() {
   try {
-    const workspaceRoot = process.cwd();
-    const historyPath = path.join(workspaceRoot, "lib/data/upload_history.json");
-    
-    // Local fallback
+    const workspaceroot = process.cwd();
+    const historyPath = path.join(workspaceroot, "lib/data/upload_history.json");
+
     const getLocalHistory = () => {
-      let uploads = [];
+      let uploads: any[] = [];
       if (fs.existsSync(historyPath)) {
-        const raw = fs.readFileSync(historyPath, "utf-8");
-        uploads = JSON.parse(raw).uploads || [];
+        uploads = JSON.parse(fs.readFileSync(historyPath, "utf-8")).uploads || [];
       }
       return uploads;
     };
 
-    // Check if Supabase is configured and query from db
     if (isSupabaseConfigured() && supabase) {
       try {
         const { data: rows, error } = await supabase
@@ -320,28 +245,18 @@ export async function GET() {
           .select("id, timestamp, platform, category, month, year, filename, size_bytes, status, error_message")
           .order("timestamp", { ascending: false });
 
-        if (error) {
-          console.error("Supabase query error on tomeame_upload_history:", error.message);
-          return NextResponse.json({ uploads: getLocalHistory() });
-        }
-
-        if (rows && rows.length > 0) {
-          const uploads = rows.map((row) => ({
-            id: row.id,
-            timestamp: row.timestamp,
-            platform: row.platform,
-            category: row.category,
-            month: row.month,
-            year: row.year,
-            filename: row.filename,
-            sizeBytes: Number(row.size_bytes),
-            status: row.status,
-            errorMessage: row.error_message
-          }));
-          return NextResponse.json({ uploads });
+        if (!error && rows && rows.length > 0) {
+          return NextResponse.json({
+            uploads: rows.map((row: any) => ({
+              id: row.id, timestamp: row.timestamp, platform: row.platform,
+              category: row.category, month: row.month, year: row.year,
+              filename: row.filename, sizeBytes: Number(row.size_bytes),
+              status: row.status, errorMessage: row.error_message
+            }))
+          });
         }
       } catch (err: any) {
-        console.error("Failed to query upload history from Supabase, falling back locally:", err.message || err);
+        console.error("Supabase query error:", err.message || err);
       }
     }
 

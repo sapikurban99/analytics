@@ -95,18 +95,7 @@ export default function OverviewSection({ dashboardData, selectedPlatform, filte
 
       {/* Performance Rating Cards */}
       <div className="grid gap-6 sm:grid-cols-3">
-        <div className="flex items-center gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-          <div className="rounded-full bg-emerald-500/20 p-2"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
-          <div><h3 className="text-xl font-bold text-foreground">18 Produk</h3><p className="text-sm font-semibold text-emerald-500">Performa Bagus</p></div>
-        </div>
-        <div className="flex items-center gap-4 rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-5">
-          <div className="rounded-full bg-yellow-500/20 p-2"><AlertTriangle className="h-6 w-6 text-yellow-500" /></div>
-          <div><h3 className="text-xl font-bold text-foreground">24 Produk</h3><p className="text-sm font-semibold text-yellow-500">Performa Sedang</p></div>
-        </div>
-        <div className="flex items-center gap-4 rounded-xl border border-red-500/20 bg-red-500/10 p-5">
-          <div className="rounded-full bg-red-500/20 p-2"><XCircle className="h-6 w-6 text-red-500" /></div>
-          <div><h3 className="text-xl font-bold text-foreground">5 Produk</h3><p className="text-sm font-semibold text-red-500">Performa Buruk</p></div>
-        </div>
+        <PerformanceRatings dashboardData={dashboardData} />
       </div>
 
       {/* Section 2C: Daily Trend + Donuts */}
@@ -157,7 +146,6 @@ function RevenueDonutChart({ dashboardData }: { dashboardData: DashboardData }) 
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      {/* Donut 1: Revenue Share */}
       <div className="rounded-2xl border border-border bg-card p-6">
         <h3 className="text-lg font-bold text-foreground mb-4">Pangsa Pasar Revenue</h3>
         <div className="flex items-center gap-8">
@@ -177,7 +165,6 @@ function RevenueDonutChart({ dashboardData }: { dashboardData: DashboardData }) 
         </div>
       </div>
 
-      {/* Donut 2: Ad Spend Share */}
       <div className="rounded-2xl border border-border bg-card p-6">
         <h3 className="text-lg font-bold text-foreground mb-4">Alokasi Spend Ads</h3>
         <div className="flex items-center gap-8">
@@ -197,5 +184,33 @@ function RevenueDonutChart({ dashboardData }: { dashboardData: DashboardData }) 
         </div>
       </div>
     </div>
+  );
+}
+
+function PerformanceRatings({ dashboardData }: { dashboardData: DashboardData }) {
+  const products = dashboardData.products;
+
+  const gmvThreshold = 500000000;
+  const midThreshold = 100000000;
+
+  const good = products.filter((p) => p.platformGmv >= gmvThreshold && p.status === "Active").length;
+  const medium = products.filter((p) => p.platformGmv >= midThreshold && p.platformGmv < gmvThreshold && p.status === "Active").length;
+  const bad = products.filter((p) => p.platformGmv < midThreshold || p.status !== "Active").length;
+
+  return (
+    <>
+      <div className="flex items-center gap-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-5">
+        <div className="rounded-full bg-emerald-500/20 p-2"><CheckCircle2 className="h-6 w-6 text-emerald-500" /></div>
+        <div><h3 className="text-xl font-bold text-foreground">{good} Produk</h3><p className="text-sm font-semibold text-emerald-500">Performa Bagus (≥500M)</p></div>
+      </div>
+      <div className="flex items-center gap-4 rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-5">
+        <div className="rounded-full bg-yellow-500/20 p-2"><AlertTriangle className="h-6 w-6 text-yellow-500" /></div>
+        <div><h3 className="text-xl font-bold text-foreground">{medium} Produk</h3><p className="text-sm font-semibold text-yellow-500">Performa Sedang (100M–500M)</p></div>
+      </div>
+      <div className="flex items-center gap-4 rounded-xl border border-red-500/20 bg-red-500/10 p-5">
+        <div className="rounded-full bg-red-500/20 p-2"><XCircle className="h-6 w-6 text-red-500" /></div>
+        <div><h3 className="text-xl font-bold text-foreground">{bad} Produk</h3><p className="text-sm font-semibold text-red-500">Performa Buruk (&lt;100M / Inactive)</p></div>
+      </div>
+    </>
   );
 }

@@ -84,46 +84,80 @@ all_files = glob.glob("./dokumen/**/*.xlsx", recursive=True) + glob.glob("./doku
 # First pass: Initialize months based on filename matches
 for file in all_files:
     filename = os.path.basename(file).lower()
-    match = re.search(r'(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s*2026', filename.replace('februari2026', 'februari 2026'))
+    filename_clean = filename.replace("februari2026", "februari 2026")
+    match = re.search(r'(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s*2026', filename_clean)
+    
+    # Also detect from date range pattern: (2026-01-01 - 2026-01-31)
+    date_range_match = re.search(r'\((\d{4})-(\d{2})\d*-\d+\s*-\s*\d{4}-\d{2}\d*-\d+\)', filename)
+    
     if match:
         month_name = match.group(1)
         month_key = f"2026-{months_map[month_name]}"
-        if month_key not in data["months"]:
-            data["months"][month_key] = {
-                "month_name": month_name.capitalize(),
-                "shopee_overview": {},
-                "tiktok_overview": {},
-                "website_overview_utm": {},
-                "combined_overview": {},
-                "meta_ads_performance": [],
-                "daily_trends": [],
-                "products": [],
-                "lives": [],
-                "videos": [],
-                "ads": {
-                    "shopee": [],
-                    "tiktok": {
-                        "live": [],
-                        "product": [],
-                        "summary": {}
-                    },
+    elif date_range_match:
+        year = date_range_match.group(1)
+        month_num = date_range_match.group(2)
+        month_key = f"{year}-{month_num}"
+        month_names_en = {"01": "januari", "02": "februari", "03": "maret", "04": "april", "05": "mei", "06": "juni",
+                          "07": "juli", "08": "agustus", "09": "september", "10": "oktober", "11": "november", "12": "desember"}
+        month_name = month_names_en.get(month_num, "unknown")
+    else:
+        continue
+        
+    if month_key not in data["months"]:
+        data["months"][month_key] = {
+            "month_name": month_name.capitalize(),
+            "shopee_overview": {},
+            "tiktok_overview": {},
+            "website_overview_utm": {},
+            "combined_overview": {},
+            "meta_ads_performance": [],
+            "daily_trends": [],
+            "products": [],
+            "lives": [],
+            "videos": [],
+            "ads": {
+                "shopee": [],
+                "tiktok": {
+                    "live": [],
+                    "product": [],
                     "summary": {}
-                }
+                },
+                "summary": {}
             }
+        }
 
 print(f"Initialized months: {list(data['months'].keys())}")
 
 # Second pass: Process each file
 for file in all_files:
     filename = os.path.basename(file).lower()
-    # Extract month
-    match = re.search(r'(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s*2026', filename.replace('februari2026', 'februari 2026'))
-    if not match:
+    filename_clean = filename.replace("februari2026", "februari 2026")
+    
+    # Extract month from Indonesian month names
+    match = re.search(r'(januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\s*2026', filename_clean)
+    
+    # Extract month from date range pattern
+    date_range_match = re.search(r'\((\d{4})-(\d{2})\d*-\d+\s*-\s*\d{4}-\d{2}\d*-\d+\)', filename)
+    
+    if match:
+        month_name = match.group(1)
+        month_key = f"2026-{months_map[month_name]}"
+    elif date_range_match:
+        year = date_range_match.group(1)
+        month_num = date_range_match.group(2)
+        month_key = f"{year}-{month_num}"
+        month_names_en = {"01": "januari", "02": "februari", "03": "maret", "04": "april", "05": "mei", "06": "juni",
+                          "07": "juli", "08": "agustus", "09": "september", "10": "oktober", "11": "november", "12": "desember"}
+        month_name = month_names_en.get(month_num, "unknown")
+    else:
         continue
-    month_name = match.group(1)
-    month_key = f"2026-{months_map[month_name]}"
     
     print(f"Processing: {filename} for month {month_key}")
+    
+    if "source_files" not in data["months"][month_key]:
+        data["months"][month_key]["source_files"] = []
+    if os.path.basename(file) not in data["months"][month_key]["source_files"]:
+        data["months"][month_key]["source_files"].append(os.path.basename(file))
     
     # 1. Shopee Overview
     if "shp overview metriks" in filename or "shopee overview" in filename:
@@ -531,7 +565,7 @@ for file in all_files:
             print(f"Error TikTok GMV Max Product Ads {filename}: {e}")
 
     # 12. Website Overview
-    elif "overview website" in filename:
+    elif "website overview" in filename or "website_overview" in filename:
         try:
             df = pd.read_csv(file)
             if "Tanggal" in df.columns:
@@ -569,6 +603,35 @@ for file in all_files:
                 data["months"][month_key]["_web_daily"] = daily_records
         except Exception as e:
             print(f"Error Website Overview {filename}: {e}")
+
+    # 12b. Website Product Performance
+    elif "website product" in filename or "website_product" in filename:
+        try:
+            df = pd.read_excel(file)
+            if "Nama Produk" in df.columns:
+                for _, row in df.iterrows():
+                    p_name = str(row["Nama Produk"]).strip()
+                    if p_name == '-' or pd.isna(row["Nama Produk"]) or p_name == 'nan':
+                        continue
+                    gmv = clean_number(row.get("Penjualan Bersih", 0))
+                    units = clean_number(row.get("Jumlah Pembayaran", 0))
+                    sku = str(row.get("SKU", "-")).strip()
+                    
+                    data["months"][month_key]["products"].append({
+                        "name": p_name,
+                        "platform": "Website",
+                        "status": "Active",
+                        "gmv": gmv,
+                        "items_sold": units,
+                        "orders": units,
+                        "conversion_rate": 0,
+                        "ctr": 0,
+                        "views": 0,
+                        "clicks": 0,
+                        "sku": sku
+                    })
+        except Exception as e:
+            print(f"Error Website Products {filename}: {e}")
 
     # 13. Meta Ads
     elif "meta cpas" in filename or "meta regular" in filename or "meta traffic" in filename or "meta website" in filename:
