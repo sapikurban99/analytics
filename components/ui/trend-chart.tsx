@@ -2,42 +2,25 @@
 
 import React from "react";
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-  ChartOptions,
-  ScriptableContext,
+  Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement,
+  Title, Tooltip, Legend, Filler, ChartOptions, ScriptableContext,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import { Card } from "@/components/ui/card";
-import { formatCompactCurrency } from "@/lib/format";
+import { formatCompactCurrency, formatNumber } from "@/lib/format";
 import { DailyTrendPoint } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 interface TrendChartProps {
   dataPoints: DailyTrendPoint[];
-  platform: "All" | "Shopee" | "TikTok" | "Meta";
+  platform: "All" | "Shopee" | "TikTok" | "Meta" | "Website";
+  multiLine?: boolean;
   className?: string;
 }
 
-export default function TrendChart({ dataPoints, platform: _platform, className }: TrendChartProps) {
+export default function TrendChart({ dataPoints, platform, multiLine = false, className }: TrendChartProps) {
   if (!dataPoints || dataPoints.length === 0) {
     return (
       <Card className="flex h-80 items-center justify-center border border-border bg-card p-6">
@@ -48,98 +31,88 @@ export default function TrendChart({ dataPoints, platform: _platform, className 
 
   const formatDate = (dateStr: string) => {
     try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString("id-ID", { day: "numeric", month: "short" });
-    } catch {
-      return dateStr;
-    }
+      return new Date(dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+    } catch { return dateStr; }
   };
 
   const labels = dataPoints.map((dp) => formatDate(dp.date));
-  const gmvData = dataPoints.map((dp) => dp.gmv);
 
-  const chartData = {
-    labels,
-    datasets: [
-      {
-        fill: true,
-        label: "Revenue",
-        data: gmvData,
-        borderColor: "#10B981",
-        borderWidth: 3,
-        pointBackgroundColor: "#10B981",
-        pointBorderColor: "var(--card, #131316)",
-        pointBorderWidth: 2,
-        pointRadius: 4,
-        pointHoverRadius: 6,
-        tension: 0.4,
-        backgroundColor: (context: ScriptableContext<"line">) => {
-          const chart = context.chart;
-          const { ctx, chartArea } = chart;
-          if (!chartArea) return undefined;
-          const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-          gradient.addColorStop(0, "rgba(16, 185, 129, 0.2)");
-          gradient.addColorStop(1, "rgba(16, 185, 129, 0)");
-          return gradient;
-        },
-      },
-    ],
+  const getValues = (dp: DailyTrendPoint) => {
+    if (platform === "All") return { gmv: dp.gmv, orders: dp.orders, visitors: dp.visitors };
+    return { gmv: dp.gmv, orders: dp.orders, visitors: dp.visitors };
   };
 
-  const chartOptions: ChartOptions<"line"> = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: false,
+  const gmvData = dataPoints.map((dp) => getValues(dp).gmv);
+  const ordersData = dataPoints.map((dp) => getValues(dp).orders);
+  const visitorsData = dataPoints.map((dp) => getValues(dp).visitors);
+
+  const datasets: any[] = [
+    {
+      fill: true, label: "Revenue", data: gmvData,
+      borderColor: "#10B981", borderWidth: 3, pointRadius: 0, tension: 0.4, yAxisID: "y",
+      backgroundColor: (ctx: ScriptableContext<"line">) => {
+        const { chartArea: a, ctx: c } = ctx.chart;
+        if (!a) return undefined;
+        const g = c.createLinearGradient(0, a.top, 0, a.bottom);
+        g.addColorStop(0, "rgba(16,185,129,0.2)"); g.addColorStop(1, "rgba(16,185,129,0)");
+        return g;
       },
+    },
+  ];
+
+  if (multiLine) {
+    datasets.push(
+      {
+        fill: false, label: "Orders", data: ordersData,
+        borderColor: "#3B82F6", borderWidth: 2, borderDash: [4, 4], pointRadius: 0, tension: 0.4, yAxisID: "y1",
+      },
+      {
+        fill: false, label: "Visitor", data: visitorsData,
+        borderColor: "#F59E0B", borderWidth: 2, borderDash: [2, 2], pointRadius: 0, tension: 0.4, yAxisID: "y1",
+      }
+    );
+  }
+
+  const chartOptions: ChartOptions<"line"> = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: multiLine, position: "top", labels: { color: "#8E8E95", usePointStyle: true, boxWidth: 8, font: { size: 11 } } },
       tooltip: {
-        backgroundColor: "rgba(15, 15, 17, 0.95)",
-        titleColor: "#FFFFFF",
-        bodyColor: "#A1A1AA",
-        borderColor: "rgba(255,255,255,0.1)",
-        borderWidth: 1,
-        padding: 12,
-        cornerRadius: 12,
-        titleFont: { family: "Figtree, sans-serif", weight: "bold", size: 13 },
-        bodyFont: { family: "Figtree, sans-serif", size: 12 },
+        backgroundColor: "rgba(15,15,17,0.95)", titleColor: "#FFF", bodyColor: "#A1A1AA",
+        borderColor: "rgba(255,255,255,0.1)", borderWidth: 1, padding: 12, cornerRadius: 12,
         callbacks: {
-          label: (context) => {
-            const val = context.parsed.y ?? 0;
-            return ` ${context.dataset.label}: ${new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(val)}`;
+          label: (ctx) => {
+            const v = ctx.parsed.y ?? 0;
+            if (ctx.dataset.label === "Revenue") return ` ${ctx.dataset.label}: Rp${formatCompactCurrency(v).replace("Rp ", "")}`;
+            return ` ${ctx.dataset.label}: ${formatNumber(v)}`;
           },
         },
       },
     },
     scales: {
-      x: {
-        grid: { display: false },
-        ticks: { color: "#8E8E95", font: { family: "Figtree, sans-serif", size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
-        border: { display: false },
-      },
+      x: { grid: { display: false }, ticks: { color: "#8E8E95", maxRotation: 0, autoSkip: true, maxTicksLimit: 8 }, border: { display: false } },
       y: {
-        grid: { color: "rgba(142, 142, 149, 0.1)" },
-        ticks: { color: "#8E8E95", font: { family: "Figtree, sans-serif", size: 11 }, callback: (value) => formatCompactCurrency(value as number).replace("Rp ", "") },
+        type: "linear", display: true, position: "left",
+        grid: { color: "rgba(142,142,149,0.1)" },
+        ticks: { color: "#8E8E95", callback: (v) => formatCompactCurrency(v as number).replace("Rp ", "") },
         border: { display: false },
       },
+      ...(multiLine ? {
+        y1: {
+          type: "linear", display: true, position: "right",
+          grid: { drawOnChartArea: false },
+          ticks: { color: "#8E8E95", callback: (v) => formatNumber(v as number) },
+          border: { display: false },
+        },
+      } : {}),
     },
     interaction: { mode: "index", intersect: false },
   };
 
   return (
     <Card className={cn("border border-border bg-card p-6 shadow-sm", className)}>
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h3 className="text-lg font-bold text-foreground">Grafik Tren</h3>
-          <p className="text-sm text-muted-foreground">Daily Revenue Over Time</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="h-3 w-3 rounded-full bg-emerald-500"></div>
-          <span className="text-xs font-semibold text-muted-foreground">Revenue</span>
-        </div>
-      </div>
-      <div className="h-72 w-full">
-        <Line data={chartData} options={chartOptions} />
+      <div className="h-80 w-full">
+        <Line data={{ labels, datasets }} options={chartOptions} />
       </div>
     </Card>
   );
