@@ -360,6 +360,7 @@ export function getDashboardDataByDateRange(
   const tiktokProductAdsList: TiktokProductAdItem[] = [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const metaAdsList: any[] = [];
+  const aggregatedMeta = { cpas: { cost:0, purchase:0, items:0, roas:0 }, website: { cost:0, purchase:0, items:0, roas:0 }, traffic: { cost:0, reach:0, impressions:0, link_clicks:0, cpm:0, cpr:0 } };
   const includedMonths = new Set<string>();
 
   for (const monthKey of Object.keys(dataToUse.months)) {
@@ -433,6 +434,20 @@ export function getDashboardDataByDateRange(
       tiktokLiveAdsList.push(...(rawAds.tiktok?.live || []));
       tiktokProductAdsList.push(...(rawAds.tiktok?.product || []));
       metaAdsList.push(...(monthData.meta_ads_performance || []));
+
+      const monthMeta = rawAds.meta;
+      if (monthMeta) {
+        aggregatedMeta.cpas.cost += monthMeta.cpas?.cost || 0;
+        aggregatedMeta.cpas.purchase += monthMeta.cpas?.purchase || 0;
+        aggregatedMeta.cpas.items += monthMeta.cpas?.items || 0;
+        aggregatedMeta.website.cost += monthMeta.website?.cost || 0;
+        aggregatedMeta.website.purchase += monthMeta.website?.purchase || 0;
+        aggregatedMeta.website.items += monthMeta.website?.items || 0;
+        aggregatedMeta.traffic.cost += monthMeta.traffic?.cost || 0;
+        aggregatedMeta.traffic.reach += monthMeta.traffic?.reach || 0;
+        aggregatedMeta.traffic.impressions += monthMeta.traffic?.impressions || 0;
+        aggregatedMeta.traffic.link_clicks += monthMeta.traffic?.link_clicks || 0;
+      }
     }
   }
 
@@ -557,7 +572,11 @@ export function getDashboardDataByDateRange(
   const shopeeAffiliate: ShopeeAffiliateItem[] = (platform === 'Shopee' || platform === 'All') ? allShopeeAffiliate : [];
   const tiktokAffiliateCreators2: TiktokAffiliateCreator[] = (platform === 'TikTok' || platform === 'All') ? [] : [];
 
-  const metaData2 = { cpas: { cost:0, purchase:0, items:0, roas:0 }, website: { cost:0, purchase:0, items:0, roas:0 }, traffic: { cost:0, reach:0, impressions:0, link_clicks:0, cpm:0, cpr:0 } } as any;
+  // Recalculate ROAS/CPM/CPR after aggregation
+  if (aggregatedMeta.cpas.cost > 0) aggregatedMeta.cpas.roas = Math.round((aggregatedMeta.cpas.purchase / aggregatedMeta.cpas.cost) * 100) / 100;
+  if (aggregatedMeta.website.cost > 0) aggregatedMeta.website.roas = Math.round((aggregatedMeta.website.purchase / aggregatedMeta.website.cost) * 100) / 100;
+  if (aggregatedMeta.traffic.impressions > 0) aggregatedMeta.traffic.cpm = Math.round((aggregatedMeta.traffic.cost / aggregatedMeta.traffic.impressions * 1000) * 100) / 100;
+  if (aggregatedMeta.traffic.link_clicks > 0) aggregatedMeta.traffic.cpr = Math.round((aggregatedMeta.traffic.cost / aggregatedMeta.traffic.link_clicks) * 100) / 100;
 
   return {
     monthName,
@@ -569,6 +588,6 @@ export function getDashboardDataByDateRange(
     shopeeAffiliate,
     shopeeChannel: undefined,
     tiktokAffiliateCreators: tiktokAffiliateCreators2,
-    ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList, meta: metaData2 },
+    ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList, meta: aggregatedMeta },
   };
 }

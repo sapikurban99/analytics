@@ -730,19 +730,30 @@ for file in all_files:
         try:
             df = pd.read_excel(file) if filename.endswith('.xlsx') else pd.read_csv(file)
             if "Campaign name" in df.columns:
-                total_cost = 0
-                total_purchase = 0
-                total_items = 0
+                # Aggregate per-month from the Month column if present
+                per_month = {}
+                has_month_col = "Month" in df.columns
                 for _, row in df.iterrows():
                     cost = clean_number(row.get("Amount spent (IDR)", 0))
                     purchase_gmv = clean_number(row.get("Purchases conversion value for shared items only", 0))
                     items = clean_number(row.get("Purchases with shared items", 0))
-                    total_cost += cost
-                    total_purchase += purchase_gmv
-                    total_items += items
 
                     if cost == 0 and purchase_gmv == 0:
                         continue
+
+                    # Determine which month this row belongs to
+                    row_month_key = month_key
+                    if has_month_col:
+                        month_val = str(row["Month"]).strip()
+                        m_match = re.search(r'(\d{4})-(\d{2})\d*-\d+', month_val)
+                        if m_match:
+                            row_month_key = f"{m_match.group(1)}-{m_match.group(2)}"
+
+                    if row_month_key not in per_month:
+                        per_month[row_month_key] = {"cost": 0, "purchase": 0, "items": 0}
+                    per_month[row_month_key]["cost"] += cost
+                    per_month[row_month_key]["purchase"] += purchase_gmv
+                    per_month[row_month_key]["items"] += items
 
                     data["months"][month_key]["meta_ads_performance"].append({
                         "campaign_name": str(row["Campaign name"]).strip(),
@@ -755,12 +766,28 @@ for file in all_files:
                         "meta_type": "cpas"
                     })
 
-                data["months"][month_key]["ads"]["meta"]["cpas"] = {
-                    "cost": total_cost,
-                    "purchase": total_purchase,
-                    "items": total_items,
-                    "roas": round(total_purchase / total_cost, 2) if total_cost > 0 else 0
-                }
+                for mk, vals in per_month.items():
+                    if mk not in data["months"]:
+                        data["months"][mk] = {
+                            "month_name": mk,
+                            "shopee_overview": {}, "tiktok_overview": {}, "website_overview_utm": {},
+                            "combined_overview": {}, "meta_ads_performance": [], "daily_trends": [],
+                            "products": [], "lives": [], "videos": [],
+                            "shopee_affiliate": [], "shopee_channel": {}, "tiktok_affiliate_creators": [],
+                            "ads": {
+                                "shopee": [], "tiktok": {"live": [], "product": [], "summary": {}},
+                                "summary": {}, "shopee_summary": {},
+                                "meta": {"cpas": {"cost":0,"purchase":0,"items":0,"roas":0},
+                                        "website": {"cost":0,"purchase":0,"items":0,"roas":0},
+                                        "traffic": {"cost":0,"reach":0,"impressions":0,"link_clicks":0,"cpm":0,"cpr":0}}
+                            }
+                        }
+                    data["months"][mk]["ads"]["meta"]["cpas"] = {
+                        "cost": vals["cost"],
+                        "purchase": vals["purchase"],
+                        "items": vals["items"],
+                        "roas": round(vals["purchase"] / vals["cost"], 2) if vals["cost"] > 0 else 0
+                    }
         except Exception as e:
             print(f"Error Meta CPAS {filename}: {e}")
 
@@ -806,23 +833,30 @@ for file in all_files:
         try:
             df = pd.read_excel(file) if filename.endswith('.xlsx') else pd.read_csv(file)
             if "Campaign name" in df.columns:
-                total_cost = 0
-                total_reach = 0
-                total_impressions = 0
-                total_link_clicks = 0
+                per_month = {}
+                has_month_col = "Month" in df.columns
                 for _, row in df.iterrows():
                     cost = clean_number(row.get("Amount spent (IDR)", 0))
                     reach = clean_number(row.get("Reach", 0))
                     impressions = clean_number(row.get("Impressions", 0))
                     link_clicks = clean_number(row.get("Link clicks", 0))
 
-                    total_cost += cost
-                    total_reach += reach
-                    total_impressions += impressions
-                    total_link_clicks += link_clicks
-
                     if cost == 0 and impressions < 10:
                         continue
+
+                    row_month_key = month_key
+                    if has_month_col:
+                        month_val = str(row["Month"]).strip()
+                        m_match = re.search(r'(\d{4})-(\d{2})\d*-\d+', month_val)
+                        if m_match:
+                            row_month_key = f"{m_match.group(1)}-{m_match.group(2)}"
+
+                    if row_month_key not in per_month:
+                        per_month[row_month_key] = {"cost": 0, "reach": 0, "impressions": 0, "link_clicks": 0}
+                    per_month[row_month_key]["cost"] += cost
+                    per_month[row_month_key]["reach"] += reach
+                    per_month[row_month_key]["impressions"] += impressions
+                    per_month[row_month_key]["link_clicks"] += link_clicks
 
                     data["months"][month_key]["meta_ads_performance"].append({
                         "campaign_name": str(row["Campaign name"]).strip(),
@@ -836,16 +870,32 @@ for file in all_files:
                         "reach": reach
                     })
 
-                cpm = (total_cost / total_impressions * 1000) if total_impressions > 0 else 0
-                cpr = total_cost / total_link_clicks if total_link_clicks > 0 else 0
-                data["months"][month_key]["ads"]["meta"]["traffic"] = {
-                    "cost": total_cost,
-                    "reach": total_reach,
-                    "impressions": total_impressions,
-                    "link_clicks": total_link_clicks,
-                    "cpm": round(cpm, 2),
-                    "cpr": round(cpr, 2)
-                }
+                for mk, vals in per_month.items():
+                    if mk not in data["months"]:
+                        data["months"][mk] = {
+                            "month_name": mk,
+                            "shopee_overview": {}, "tiktok_overview": {}, "website_overview_utm": {},
+                            "combined_overview": {}, "meta_ads_performance": [], "daily_trends": [],
+                            "products": [], "lives": [], "videos": [],
+                            "shopee_affiliate": [], "shopee_channel": {}, "tiktok_affiliate_creators": [],
+                            "ads": {
+                                "shopee": [], "tiktok": {"live": [], "product": [], "summary": {}},
+                                "summary": {}, "shopee_summary": {},
+                                "meta": {"cpas": {"cost":0,"purchase":0,"items":0,"roas":0},
+                                        "website": {"cost":0,"purchase":0,"items":0,"roas":0},
+                                        "traffic": {"cost":0,"reach":0,"impressions":0,"link_clicks":0,"cpm":0,"cpr":0}}
+                            }
+                        }
+                    cpm = (vals["cost"] / vals["impressions"] * 1000) if vals["impressions"] > 0 else 0
+                    cpr = vals["cost"] / vals["link_clicks"] if vals["link_clicks"] > 0 else 0
+                    data["months"][mk]["ads"]["meta"]["traffic"] = {
+                        "cost": vals["cost"],
+                        "reach": vals["reach"],
+                        "impressions": vals["impressions"],
+                        "link_clicks": vals["link_clicks"],
+                        "cpm": round(cpm, 2),
+                        "cpr": round(cpr, 2)
+                    }
         except Exception as e:
             print(f"Error Meta Traffic {filename}: {e}")
 
