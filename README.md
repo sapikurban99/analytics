@@ -21,7 +21,7 @@ Dashboard monitoring performa omnichannel untuk brand **Tome Ame** — mengkonso
 
 ```
 OVERVIEW
-├── Performance Sales    — scorecard revenue + ads lintas channel
+├── Performance Sales    — scorecard revenue + ads lintas channel (Grid 3x2)
 └── Performance Product  — tabel GMV per produk cross-channel
 
 TIKTOK SHOP
@@ -33,7 +33,7 @@ TIKTOK SHOP
 SHOPEE
 ├── Overview             — GMV, Spend Ads, ROAS, Operational KPI
 ├── Product Analyz       — performa produk Shopee
-├── Channel Analyz       — breakdown organic vs ads + tabel Shopee Ads
+├── Channel Analyz       — breakdown organic vs ads + tabel Shopee Ads (Grid 3-Kolom)
 └── Affiliate Analyz     — KOL Shopee Share
 
 WEBSITE

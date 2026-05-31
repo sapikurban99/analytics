@@ -99,7 +99,7 @@ export default function Home() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground transition-colors duration-300">
+    <div className="flex h-dvh w-full overflow-hidden bg-background text-foreground transition-colors duration-300">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
       <div className="flex flex-1 flex-col overflow-y-auto relative custom-scrollbar">

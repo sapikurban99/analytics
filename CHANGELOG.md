@@ -45,3 +45,10 @@ Tampilan dashboard dirancang dengan estetika premium yang responsif:
 *   **Supabase Database Integration**: Penyimpanan data yang andal menggunakan Supabase untuk persistence jangka panjang.
 *   **Dynamic Metrics API**: Endpoint API Next.js `/api/metrics` dan `/api/admin/metrics` untuk sinkronisasi data client-server.
 *   **Seeding & Migration Script**: Script pembersih dan pengisi database awal otomatis (`seed.ts`) untuk mempermudah setup awal server.
+
+---
+
+## 6. 📐 Pembaruan Tata Letak Grid (Mei 2026)
+Peningkatan aspek visual pada halaman utama dan sub-halaman:
+*   **Grid 3x2 Performance Sales**: Mengubah tata letak scorecard metrik utama di halaman **Performance Sales** menjadi grid 3x2 (`grid-cols-1 sm:grid-cols-2 md:grid-cols-3`) pada tablet/desktop untuk mengoptimalkan ruang layar.
+*   **Grid 3-Kolom Shopee Channel Analyz**: Mengubah tata letak scorecard "Overview Channel" pada sub-halaman **Shopee Channel Analyz** menjadi grid 3 kolom (`grid-cols-1 sm:grid-cols-2 md:grid-cols-3`) agar konsisten dengan halaman utama.

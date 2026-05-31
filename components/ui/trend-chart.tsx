@@ -7,7 +7,7 @@ import {
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import { Card } from "@/components/ui/card";
-import { formatCompactCurrency, formatNumber } from "@/lib/format";
+import { formatCompactCurrency, formatNumber, formatCurrency } from "@/lib/format";
 import { DailyTrendPoint } from "@/lib/db";
 import { cn } from "@/lib/utils";
 
@@ -17,10 +17,12 @@ interface TrendChartProps {
   dataPoints: DailyTrendPoint[];
   platform: "All" | "Shopee" | "TikTok" | "Meta" | "Website";
   multiLine?: boolean;
+  metric?: "gmv" | "orders" | "visitors";
+  title?: string;
   className?: string;
 }
 
-export default function TrendChart({ dataPoints, platform, multiLine = false, className }: TrendChartProps) {
+export default function TrendChart({ dataPoints, platform, multiLine = false, metric, title, className }: TrendChartProps) {
   if (!dataPoints || dataPoints.length === 0) {
     return (
       <Card className="flex h-80 items-center justify-center border border-border bg-card p-6">
@@ -37,14 +39,71 @@ export default function TrendChart({ dataPoints, platform, multiLine = false, cl
 
   const labels = dataPoints.map((dp) => formatDate(dp.date));
 
-  const getValues = (dp: DailyTrendPoint) => {
-    if (platform === "All") return { gmv: dp.gmv, orders: dp.orders, visitors: dp.visitors };
-    return { gmv: dp.gmv, orders: dp.orders, visitors: dp.visitors };
+  const gmvData = dataPoints.map((dp) => dp.gmv);
+  const ordersData = dataPoints.map((dp) => dp.orders);
+  const visitorsData = dataPoints.map((dp) => dp.visitors);
+
+  const colorMap = { gmv: "#10B981", orders: "#3B82F6", visitors: "#F59E0B" };
+  const formatMap = {
+    gmv: (v: number) => formatCurrency(v),
+    orders: (v: number) => formatNumber(v),
+    visitors: (v: number) => formatNumber(v),
   };
 
-  const gmvData = dataPoints.map((dp) => getValues(dp).gmv);
-  const ordersData = dataPoints.map((dp) => getValues(dp).orders);
-  const visitorsData = dataPoints.map((dp) => getValues(dp).visitors);
+  if (metric) {
+    const data = metric === "gmv" ? gmvData : metric === "orders" ? ordersData : visitorsData;
+    const color = colorMap[metric];
+    const fmt = formatMap[metric];
+
+    const singleOptions: ChartOptions<"line"> = {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(15,15,17,0.95)", titleColor: "#FFF", bodyColor: "#A1A1AA",
+          borderColor: "rgba(255,255,255,0.1)", borderWidth: 1, padding: 12, cornerRadius: 12,
+          callbacks: { label: (ctx) => ` ${fmt(ctx.parsed.y ?? 0)}` },
+        },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: "#8E8E95", maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }, border: { display: false } },
+        y: {
+          type: "linear", position: "left",
+          grid: { color: "rgba(142,142,149,0.1)" },
+          ticks: { color: "#8E8E95", callback: (v) => metric === "gmv" ? formatCompactCurrency(v as number).replace("Rp ", "") : formatNumber(v as number) },
+          border: { display: false },
+        },
+      },
+      interaction: { mode: "index", intersect: false },
+    };
+
+    return (
+      <Card className={cn("border border-border bg-card p-6 shadow-sm", className)}>
+        {title && <h3 className="text-sm font-bold text-foreground mb-3">{title}</h3>}
+        <div className="h-64 w-full">
+          <Line
+            data={{
+              labels,
+              datasets: [{
+                label: title || metric, data,
+                borderColor: color, borderWidth: 3, pointRadius: 0, tension: 0.4,
+                fill: true,
+                backgroundColor: (ctx: ScriptableContext<"line">) => {
+                  const { chartArea: a, ctx: c } = ctx.chart;
+                  if (!a) return undefined;
+                  const g = c.createLinearGradient(0, a.top, 0, a.bottom);
+                  g.addColorStop(0, `${color}33`);
+                  g.addColorStop(1, `${color}00`);
+                  return g;
+                },
+              }],
+            }}
+            options={singleOptions}
+          />
+        </div>
+      </Card>
+    );
+  }
 
   const datasets: any[] = [
     {

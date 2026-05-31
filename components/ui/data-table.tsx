@@ -216,7 +216,7 @@ export default function DataTable<T extends Record<string, any>>({
       </div>
 
       {/* Main Table component */}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="rounded-xl border border-border bg-card overflow-x-auto">
         <Table>
           <TableHeader className="bg-[#3D4BFF]/5 dark:bg-[#3D4BFF]/10">
             <TableRow className="border-b border-border hover:bg-transparent">

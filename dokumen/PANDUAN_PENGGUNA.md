@@ -77,6 +77,8 @@ Halaman ini adalah **ringkasan performa penjualan gabungan** dari semua channel 
 
 ### Scorecard Performance Sales
 
+Tata letak scorecard menggunakan format **Grid 3x2** (3 kolom dan 2 baris pada tablet/desktop) untuk memberikan tampilan visual yang seimbang dan mudah dipindai.
+
 | Metrik | Penjelasan |
 |--------|-----------|
 | **Total Revenue** | Akumulasi GMV dari semua channel dalam rentang tanggal yang dipilih. Ada indikator pertumbuhan (▲/▼) dibanding periode sebelumnya |
@@ -272,6 +274,8 @@ Scorecard + tabel produk dengan Revenue dan Items Sold dari Shopee. Ada search b
 ### #3 Channel Analyz
 
 Menampilkan total omzet Shopee lengkap dengan Orders, Visitors, dan AOV.
+
+Scorecard **Overview Channel** menyajikan breakdown performa tiap channel (Product Card, Live, Video, Affiliate) dalam format **Grid 3 kolom** (max 3x2) yang rapi dan konsisten dengan tampilan Performance Sales.
 
 > **Catatan:** Breakdown per sumber revenue (Product Card, Seller Live, Video, Affiliate) membutuhkan data channel-level dari Shopee Seller Center yang belum diintegrasikan.
 

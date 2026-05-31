@@ -116,6 +116,8 @@ for file in all_files:
             "lives": [],
             "videos": [],
             "shopee_affiliate": [],
+            "shopee_channel": {},
+            "tiktok_affiliate_creators": [],
             "ads": {
                 "shopee": [],
                 "tiktok": {
@@ -123,7 +125,13 @@ for file in all_files:
                     "product": [],
                     "summary": {}
                 },
-                "summary": {}
+                "summary": {},
+                "shopee_summary": {},
+                "meta": {
+                    "cpas": { "cost": 0, "purchase": 0, "items": 0, "roas": 0 },
+                    "website": { "cost": 0, "purchase": 0, "items": 0, "roas": 0 },
+                    "traffic": { "cost": 0, "reach": 0, "impressions": 0, "link_clicks": 0, "cpm": 0, "cpr": 0 }
+                }
             }
         }
 
@@ -219,6 +227,20 @@ for file in all_files:
                     "shopee_clicks": daily_vals.get("Product Clicks", 0)
                 })
             data["months"][month_key]["_shp_daily"] = daily_records
+            
+            # Extract channel breakdown from Traffic Sources (confirmed order) sheet
+            try:
+                ts_df = pd.read_excel(file, sheet_name="Traffic Sources (confirmed ...", header=None)
+                ts_row = ts_df.iloc[1]
+                data["months"][month_key]["shopee_channel"] = {
+                    "product_card": clean_number(ts_row[3]),
+                    "seller_live": clean_number(ts_row[4]),
+                    "seller_video": clean_number(ts_row[5]),
+                    "affiliate": clean_number(ts_row[6]),
+                    "shopee_ads": clean_number(ts_row[7])
+                }
+            except Exception as e:
+                print(f"Error Shopee channel breakdown {filename}: {e}")
         except Exception as e:
             print(f"Error Shopee Overview {filename}: {e}")
             
@@ -703,35 +725,129 @@ for file in all_files:
         except Exception as e:
             print(f"Error Website Products {filename}: {e}")
 
-    # 13. Meta Ads
-    elif "meta cpas" in filename or "meta regular" in filename or "meta traffic" in filename or "meta website" in filename:
+    # 13. Meta Ads — split by CPAS, Website, Traffic
+    elif "meta cpas" in filename:
         try:
             df = pd.read_excel(file) if filename.endswith('.xlsx') else pd.read_csv(file)
             if "Campaign name" in df.columns:
+                total_cost = 0
+                total_purchase = 0
+                total_items = 0
                 for _, row in df.iterrows():
-                    name = str(row["Campaign name"]).strip()
-                    if name == '-' or pd.isna(row["Campaign name"]):
-                        continue
                     cost = clean_number(row.get("Amount spent (IDR)", 0))
-                    gmv = clean_number(row.get("Purchases conversion value for shared items only", 0))
-                    orders = clean_number(row.get("Purchases with shared items", 0))
-                    impressions = clean_number(row.get("Impressions", 0))
-                    clicks = clean_number(row.get("Link clicks", 0))
-                    
-                    if cost == 0 and gmv == 0 and impressions < 10:
+                    purchase_gmv = clean_number(row.get("Purchases conversion value for shared items only", 0))
+                    items = clean_number(row.get("Purchases with shared items", 0))
+                    total_cost += cost
+                    total_purchase += purchase_gmv
+                    total_items += items
+
+                    if cost == 0 and purchase_gmv == 0:
                         continue
-                        
+
                     data["months"][month_key]["meta_ads_performance"].append({
-                        "campaign_name": name,
+                        "campaign_name": str(row["Campaign name"]).strip(),
                         "cost": cost,
-                        "gmv": gmv,
-                        "orders": orders,
-                        "impressions": impressions,
-                        "clicks": clicks,
-                        "roi": round(gmv / cost, 2) if cost > 0 else 0
+                        "gmv": purchase_gmv,
+                        "orders": items,
+                        "impressions": clean_number(row.get("Impressions", 0)),
+                        "clicks": clean_number(row.get("Link clicks", 0)),
+                        "roi": round(purchase_gmv / cost, 2) if cost > 0 else 0,
+                        "meta_type": "cpas"
                     })
+
+                data["months"][month_key]["ads"]["meta"]["cpas"] = {
+                    "cost": total_cost,
+                    "purchase": total_purchase,
+                    "items": total_items,
+                    "roas": round(total_purchase / total_cost, 2) if total_cost > 0 else 0
+                }
         except Exception as e:
-            print(f"Error Meta Ads {filename}: {e}")
+            print(f"Error Meta CPAS {filename}: {e}")
+
+    elif "meta website" in filename:
+        try:
+            df = pd.read_excel(file) if filename.endswith('.xlsx') else pd.read_csv(file)
+            if "Campaign name" in df.columns:
+                total_cost = 0
+                total_purchase = 0
+                total_items = 0
+                for _, row in df.iterrows():
+                    cost = clean_number(row.get("Amount spent (IDR)", 0))
+                    purchase_gmv = clean_number(row.get("Purchases conversion value for shared items only", 0))
+                    items = clean_number(row.get("Purchases with shared items", 0))
+                    total_cost += cost
+                    total_purchase += purchase_gmv
+                    total_items += items
+
+                    if cost == 0 and purchase_gmv == 0:
+                        continue
+
+                    data["months"][month_key]["meta_ads_performance"].append({
+                        "campaign_name": str(row["Campaign name"]).strip(),
+                        "cost": cost,
+                        "gmv": purchase_gmv,
+                        "orders": items,
+                        "impressions": clean_number(row.get("Impressions", 0)),
+                        "clicks": clean_number(row.get("Link clicks", 0)),
+                        "roi": round(purchase_gmv / cost, 2) if cost > 0 else 0,
+                        "meta_type": "website"
+                    })
+
+                data["months"][month_key]["ads"]["meta"]["website"] = {
+                    "cost": total_cost,
+                    "purchase": total_purchase,
+                    "items": total_items,
+                    "roas": round(total_purchase / total_cost, 2) if total_cost > 0 else 0
+                }
+        except Exception as e:
+            print(f"Error Meta Website {filename}: {e}")
+
+    elif "meta traffic" in filename:
+        try:
+            df = pd.read_excel(file) if filename.endswith('.xlsx') else pd.read_csv(file)
+            if "Campaign name" in df.columns:
+                total_cost = 0
+                total_reach = 0
+                total_impressions = 0
+                total_link_clicks = 0
+                for _, row in df.iterrows():
+                    cost = clean_number(row.get("Amount spent (IDR)", 0))
+                    reach = clean_number(row.get("Reach", 0))
+                    impressions = clean_number(row.get("Impressions", 0))
+                    link_clicks = clean_number(row.get("Link clicks", 0))
+
+                    total_cost += cost
+                    total_reach += reach
+                    total_impressions += impressions
+                    total_link_clicks += link_clicks
+
+                    if cost == 0 and impressions < 10:
+                        continue
+
+                    data["months"][month_key]["meta_ads_performance"].append({
+                        "campaign_name": str(row["Campaign name"]).strip(),
+                        "cost": cost,
+                        "gmv": 0,
+                        "orders": 0,
+                        "impressions": impressions,
+                        "clicks": link_clicks,
+                        "roi": 0,
+                        "meta_type": "traffic",
+                        "reach": reach
+                    })
+
+                cpm = (total_cost / total_impressions * 1000) if total_impressions > 0 else 0
+                cpr = total_cost / total_link_clicks if total_link_clicks > 0 else 0
+                data["months"][month_key]["ads"]["meta"]["traffic"] = {
+                    "cost": total_cost,
+                    "reach": total_reach,
+                    "impressions": total_impressions,
+                    "link_clicks": total_link_clicks,
+                    "cpm": round(cpm, 2),
+                    "cpr": round(cpr, 2)
+                }
+        except Exception as e:
+            print(f"Error Meta Traffic {filename}: {e}")
 
     # 14. Shopee Affiliate
     elif "shp performance affiliate" in filename or "shp affiliate" in filename:
@@ -760,6 +876,35 @@ for file in all_files:
                     })
         except Exception as e:
             print(f"Error Shopee Affiliate {filename}: {e}")
+
+    # 15. TikTok Creator Affiliate
+    elif "tts creator affiliate" in filename:
+        try:
+            df = pd.read_excel(file) if filename.endswith('.xlsx') else pd.read_csv(file)
+            if "Creator name" in df.columns and "Creator-attributed GMV" in df.columns:
+                for _, row in df.iterrows():
+                    name = str(row.get("Creator name", "")).strip()
+                    if name == '-' or pd.isna(row.get("Creator name")):
+                        continue
+                    gmv = clean_number(row.get("Creator-attributed GMV", 0))
+                    items_sold = clean_number(row.get("Creator-attributed items sold", 0))
+                    orders = clean_number(row.get("Attributed orders", 0))
+                    commission = clean_number(row.get("Est. commission", 0))
+                    refunds = clean_number(row.get("Refunds", 0))
+
+                    data["months"][month_key]["tiktok_affiliate_creators"].append({
+                        "creator": name,
+                        "gmv": gmv,
+                        "items_sold": items_sold,
+                        "orders": orders,
+                        "commission": commission,
+                        "refunds": refunds,
+                        "videos": clean_number(row.get("Videos", 0)),
+                        "live_streams": clean_number(row.get("LIVE streams", 0)),
+                        "aov": clean_number(row.get("AOV", 0))
+                    })
+        except Exception as e:
+            print(f"Error TikTok Creator Affiliate {filename}: {e}")
 
 # --- THIRD PASS: POST PROCESS AND COMBINE ---
 print("Post-processing and consolidating all metrics...")

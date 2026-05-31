@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   DollarSign,
   TrendingUp,
@@ -9,13 +9,16 @@ import {
   Percent,
   Coins,
   Store,
+  UserCheck,
+  ArrowUpRight,
+  ArrowDownRight,
 } from "lucide-react";
 import MetricCard from "@/components/ui/metric-card";
 import TrendChart from "@/components/ui/trend-chart";
 import DataTable, { ColumnDef } from "@/components/ui/data-table";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { DashboardData, VideoMetric, LiveSession } from "@/lib/db";
+import { DashboardData, VideoMetric, LiveSession, ConsolidatedProduct } from "@/lib/db";
 
 interface Props {
   dashboardData: DashboardData;
@@ -31,9 +34,11 @@ export function TikTokOverview({ dashboardData }: Props) {
   const adsGmv = dashboardData.ads.summary.gmv;
   const adsCost = dashboardData.ads.summary.cost;
   const roas = adsCost > 0 ? adsGmv / adsCost : 0;
-  // Use products as single source of truth for items sold (from tts_product_list)
-  // Lives + videos items_sold overlap with product data → would triple-count
   const itemsSold = dashboardData.products.reduce((s, p) => s + p.tiktokItemsSold, 0);
+
+  const gmvGrowth = dashboardData.overview.find((m) => m.key === "gmv")?.growth || 0;
+  const ordersGrowth = dashboardData.overview.find((m) => m.key === "orders")?.growth || 0;
+  const visitorsGrowth = dashboardData.overview.find((m) => m.key === "visitors")?.growth || 0;
 
   const videoGmv = dashboardData.videos.reduce((s, v) => s + v.gmv, 0);
   const liveGmv = dashboardData.lives.reduce((s, l) => s + l.gmv, 0);
@@ -45,7 +50,7 @@ export function TikTokOverview({ dashboardData }: Props) {
       <div>
         <h2 className="text-lg font-bold text-foreground mb-4">Financial Metrics</h2>
         <div className="grid gap-6 sm:grid-cols-3">
-          <MetricCard label="Revenue" value={gmv} format="currency" icon={DollarSign} />
+          <MetricCard label="Revenue" value={gmv} growth={gmvGrowth} format="currency" icon={DollarSign} />
           <MetricCard label="Spend Ads" value={adsCost} format="currency" icon={TrendingUp} />
           <MetricCard label="ROAS" value={roas} format="number" icon={TrendingUp} renderValue={() => `${roas.toFixed(2)}x`} />
         </div>
@@ -54,22 +59,71 @@ export function TikTokOverview({ dashboardData }: Props) {
       <div>
         <h2 className="text-lg font-bold text-foreground mb-4">Operational Metrics</h2>
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-5">
-          <MetricCard label="Orders" value={orders} format="number" icon={ShoppingBag} />
+          <MetricCard label="Orders" value={orders} growth={ordersGrowth} format="number" icon={ShoppingBag} />
           <MetricCard label="Items Sold" value={itemsSold} format="number" icon={Store} />
-          <MetricCard label="Visitors" value={visitors} format="number" icon={Users} />
+          <MetricCard label="Visitors" value={visitors} growth={visitorsGrowth} format="number" icon={Users} />
           <MetricCard label="Conversion Rate" value={cvr} format="percent" icon={Percent} />
           <MetricCard label="AOV" value={aov} format="currency" icon={Coins} />
         </div>
       </div>
 
       <div>
-        <TrendChart dataPoints={dashboardData.dailyTrends} platform="TikTok" />
+        <h3 className="text-lg font-bold text-foreground mb-4">Grafik Tren — Revenue, Orders, Visitor</h3>
+        <div className="grid gap-6">
+          <TrendChart dataPoints={dashboardData.dailyTrends} platform="TikTok" metric="gmv" title="Revenue" className="h-72" />
+          <TrendChart dataPoints={dashboardData.dailyTrends} platform="TikTok" metric="orders" title="Orders" className="h-72" />
+          <TrendChart dataPoints={dashboardData.dailyTrends} platform="TikTok" metric="visitors" title="Visitor" className="h-72" />
+        </div>
       </div>
 
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Revenue Composition</h3>
         <div className="grid gap-6 lg:grid-cols-2">
-          <div className="text-3xl font-bold text-foreground">{formatCurrency(gmv)}<p className="text-sm text-muted-foreground font-normal mt-1">Total Revenue</p></div>
+          <div>
+            <div className="text-3xl font-bold text-foreground">{formatCurrency(gmv)}</div>
+            <p className="text-sm text-muted-foreground font-normal mt-1">Total Revenue TikTok</p>
+            <div className="mt-6 flex flex-wrap items-center gap-6">
+              <div className="relative w-32 h-32 sm:w-40 sm:h-40">
+                <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--border)" strokeWidth="3" />
+                  {[
+                    { label: "Video", value: videoGmv, color: "#8B5CF6" },
+                    { label: "Live", value: liveGmv, color: "#EF4444" },
+                    { label: "Product Card", value: productCardGmv, color: "#F59E0B" },
+                  ].map((seg, i, arr) => {
+                    const pct = totalRevenueComposition > 0 ? (seg.value / totalRevenueComposition) * 100 : 0;
+                    const offset = arr.slice(0, i).reduce((s, prev) => s + (totalRevenueComposition > 0 ? (prev.value / totalRevenueComposition) * 100 : 0), 0);
+                    return (
+                      <circle
+                        key={seg.label}
+                        cx="18" cy="18" r="15.5"
+                        fill="none" stroke={seg.color} strokeWidth="3"
+                        strokeDasharray={`${pct} ${100 - pct}`}
+                        strokeDashoffset={`${-offset}`}
+                        strokeLinecap="round"
+                      />
+                    );
+                  })}
+                </svg>
+              </div>
+              <div className="space-y-3 flex-1">
+                {[
+                  { label: "Video", value: videoGmv, color: "#8B5CF6" },
+                  { label: "Live", value: liveGmv, color: "#EF4444" },
+                  { label: "Product Card", value: productCardGmv, color: "#F59E0B" },
+                ].map((item) => {
+                  const pct = totalRevenueComposition > 0 ? (item.value / totalRevenueComposition) * 100 : 0;
+                  return (
+                    <div key={item.label} className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                      <span className="text-sm">{item.label}</span>
+                      <span className="text-sm font-bold ml-auto">{pct.toFixed(1)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
           <div className="space-y-4">
             {[
               { label: "Video", value: videoGmv, color: "bg-purple-500" },
@@ -79,7 +133,12 @@ export function TikTokOverview({ dashboardData }: Props) {
               <div key={item.label}>
                 <div className="flex justify-between text-sm mb-1">
                   <span className="text-muted-foreground">{item.label}</span>
-                  <span className="text-foreground font-semibold">{formatCurrency(item.value)} <span className="text-muted-foreground font-normal">({totalRevenueComposition > 0 ? ((item.value / totalRevenueComposition) * 100).toFixed(1) : 0}%)</span></span>
+                  <span className="text-foreground font-semibold">
+                    {formatCurrency(item.value)}
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({totalRevenueComposition > 0 ? ((item.value / totalRevenueComposition) * 100).toFixed(1) : 0}%)
+                    </span>
+                  </span>
                 </div>
                 <div className="h-2 w-full rounded-full bg-muted">
                   <div className={`h-full rounded-full ${item.color}`} style={{ width: `${totalRevenueComposition > 0 ? (item.value / totalRevenueComposition) * 100 : 0}%` }} />
@@ -95,22 +154,34 @@ export function TikTokOverview({ dashboardData }: Props) {
 
 /* ====== #2 TIKTOK PRODUCT ANALYZ ====== */
 export function TikTokProductAnalyz({ dashboardData }: Props) {
-  const tiktokProducts = dashboardData.products.filter((p) => p.tiktokGmv > 0);
+  const tiktokProducts = useMemo(() => {
+    return dashboardData.products
+      .filter((p) => p.tiktokGmv > 0 || p.tiktokItemsSold > 0)
+      .sort((a, b) => b.tiktokGmv - a.tiktokGmv);
+  }, [dashboardData.products]);
 
-  const columns: ColumnDef<any>[] = [
-    { key: "name", header: "Product Name", sortable: true, render: (p) => <div className="max-w-xs"><p className="truncate font-semibold text-foreground" title={p.name}>{p.name}</p></div> },
-    { key: "tiktokGmv", header: "Revenue", sortable: true, align: "right", render: (p) => <span className="font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</span> },
-    { key: "tiktokItemsSold", header: "Items Sold", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.tiktokItemsSold)}</span> },
-  ];
+  const totalRevenue = tiktokProducts.reduce((s, p) => s + p.tiktokGmv, 0);
+  const totalItemsSold = tiktokProducts.reduce((s, p) => s + p.tiktokItemsSold, 0);
+
+  const columns = useMemo<ColumnDef<ConsolidatedProduct>[]>(() => [
+    { key: "name", header: "Product", sortable: true, render: (p) => (
+      <div className="max-w-xs"><p className="truncate font-semibold text-foreground" title={p.name}>{p.name}</p></div>
+    )},
+    { key: "tiktokGmv", header: "GMV", sortable: true, align: "right", render: (p) => <span className="font-semibold text-rose-500">{formatCurrency(p.tiktokGmv)}</span> },
+    { key: "tiktokItemsSold", header: "Item Sold", sortable: true, align: "right", render: (p) => <span>{formatNumber(p.tiktokItemsSold)}</span> },
+  ], []);
 
   return (
     <div className="space-y-6 mt-4">
-      <div className="grid gap-6 sm:grid-cols-3">
-        <MetricCard label="Total Products" value={tiktokProducts.length} format="number" icon={ShoppingBag} />
-        <MetricCard label="Top Revenue" value={tiktokProducts[0]?.tiktokGmv || 0} format="currency" icon={DollarSign} />
-        <MetricCard label="Total Items Sold" value={tiktokProducts.reduce((s, p) => s + p.tiktokItemsSold, 0)} format="number" icon={Store} />
+      <div className="grid gap-6 sm:grid-cols-2">
+        <MetricCard label="Total Revenue" value={totalRevenue} format="currency" icon={DollarSign} />
+        <MetricCard label="Total Item Sold" value={totalItemsSold} format="number" icon={Store} />
       </div>
-      <DataTable columns={columns} data={tiktokProducts} searchFields={["name"]} searchPlaceholder="Cari produk TikTok..." defaultSort={{ key: "tiktokGmv", direction: "desc" }} />
+
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Product List</h3>
+        <DataTable columns={columns} data={tiktokProducts} searchFields={["name"]} searchPlaceholder="Cari produk TikTok..." defaultSort={{ key: "tiktokGmv", direction: "desc" }} />
+      </div>
     </div>
   );
 }
@@ -118,6 +189,8 @@ export function TikTokProductAnalyz({ dashboardData }: Props) {
 /* ====== #3 TIKTOK CHANNEL ANALYZ ====== */
 export function TikTokChannelAnalyz({ dashboardData }: Props) {
   const [channelFilter, setChannelFilter] = React.useState<"all" | "Seller" | "Affiliate">("all");
+
+  const gmv = dashboardData.overview.find((m) => m.key === "gmv")?.value || 0;
 
   const filteredVideos = React.useMemo(() => {
     if (channelFilter === "all") return dashboardData.videos;
@@ -128,6 +201,29 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
     if (channelFilter === "all") return dashboardData.lives;
     return dashboardData.lives.filter((l) => l.type === channelFilter);
   }, [dashboardData.lives, channelFilter]);
+
+  const topCreators = useMemo(() => {
+    const map = new Map<string, { name: string; gmv: number; itemsSold: number; videos: number; lives: number }>();
+    dashboardData.videos.forEach((v) => {
+      const key = v.creator;
+      if (!map.has(key)) map.set(key, { name: v.creator, gmv: 0, itemsSold: 0, videos: 0, lives: 0 });
+      const c = map.get(key)!;
+      c.gmv += v.gmv;
+      c.itemsSold += v.items_sold;
+      c.videos += 1;
+    });
+    dashboardData.lives.forEach((l) => {
+      const key = l.creator;
+      if (!map.has(key)) map.set(key, { name: l.creator_name, gmv: 0, itemsSold: 0, videos: 0, lives: 0 });
+      const c = map.get(key)!;
+      c.gmv += l.gmv;
+      c.itemsSold += l.items_sold;
+      c.lives += 1;
+    });
+    return Array.from(map.values())
+      .sort((a, b) => b.gmv - a.gmv)
+      .slice(0, 10);
+  }, [dashboardData.videos, dashboardData.lives]);
 
   const videoColumns: ColumnDef<VideoMetric>[] = [
     { key: "creator", header: "Creator Name", sortable: true, render: (v) => <span className="font-semibold text-foreground">@{v.creator}</span> },
@@ -154,6 +250,31 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
 
   return (
     <div className="space-y-8 mt-4">
+      <div>
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-sm mb-6">
+          <h3 className="text-lg font-bold text-foreground mb-2">Total GMV TikTok</h3>
+          <p className="text-4xl font-bold text-rose-500">{formatCurrency(gmv)}</p>
+        </div>
+
+        {topCreators.length > 0 && (
+          <div className="rounded-2xl border border-border bg-card p-6 shadow-sm mb-6">
+            <h3 className="text-lg font-bold text-foreground mb-4">Top 10 Creators</h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {topCreators.map((c, i) => (
+                <div key={c.name} className="flex items-center gap-3 p-3 rounded-xl bg-muted/20 border border-border">
+                  <span className="text-lg font-bold text-muted-foreground w-6">{i + 1}</span>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-foreground text-sm truncate">{c.name}</p>
+                    <p className="text-xs text-rose-500 font-semibold">{formatCurrency(c.gmv)}</p>
+                    <p className="text-xs text-muted-foreground">{c.videos} video{c.lives > 0 ? ` · ${c.lives} live` : ""}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="flex items-center gap-3">
         <span className="text-sm font-medium text-muted-foreground">Filter:</span>
         {(["all", "Seller", "Affiliate"] as const).map((f) => (
@@ -188,7 +309,9 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                <th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">GMV (Rp)</th><th className="py-3 px-3 text-right">Items Sold</th>
+                <th className="py-3 px-3">Product Name</th>
+                <th className="py-3 px-3 text-right">GMV (Rp)</th>
+                <th className="py-3 px-3 text-right">Items Sold</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
@@ -209,16 +332,16 @@ export function TikTokChannelAnalyz({ dashboardData }: Props) {
 
 /* ====== #4 TIKTOK AFFILIATE ANALYZ ====== */
 export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
-  const affiliateVideos = React.useMemo(
+  const affiliateVideos = useMemo(
     () => dashboardData.videos.filter((v) => v.type === "Affiliate"),
     [dashboardData]
   );
-  const affiliateLives = React.useMemo(
+  const affiliateLives = useMemo(
     () => dashboardData.lives.filter((l) => l.type === "Affiliate"),
     [dashboardData]
   );
 
-  const creators = React.useMemo(() => {
+  const creators = useMemo(() => {
     const map: Record<string, { creator: string; gmv: number; itemsSold: number; videos: number; lives: number; commission: number }> = {};
     affiliateVideos.forEach((v) => {
       if (!map[v.creator]) map[v.creator] = { creator: v.creator, gmv: 0, itemsSold: 0, videos: 0, lives: 0, commission: 0 };
@@ -237,27 +360,52 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
     return Object.values(map).sort((a, b) => b.gmv - a.gmv);
   }, [affiliateVideos, affiliateLives]);
 
-  const affiliateProducts = React.useMemo(() => {
-    const products = dashboardData.products.filter((p) => p.tiktokGmv > 0);
-    const productMap = new Map<string, { name: string; gmv: number; itemsSold: number }>();
-    products.forEach((p) => {
-      productMap.set(p.name, { name: p.name, gmv: p.tiktokGmv, itemsSold: p.tiktokItemsSold });
-    });
-    return Array.from(productMap.values()).sort((a, b) => b.gmv - a.gmv);
-  }, [dashboardData]);
-
   const totalAffiliateGmv = creators.reduce((s, c) => s + c.gmv, 0);
+  const totalItemsSold = creators.reduce((s, c) => s + c.itemsSold, 0);
   const totalCommission = creators.reduce((s, c) => s + c.commission, 0);
 
   return (
     <div className="space-y-8 mt-4">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Commission</h3>
+        <div className="grid gap-6 lg:grid-cols-4">
+          {[
+            { label: "Commission Plan Type", value: "Open" },
+            { label: "Commission Rate%", value: "8%" },
+            { label: "Total Paid Out", value: formatCurrency(totalCommission) },
+            { label: "Affiliate ROI Multiplier", value: `${(totalAffiliateGmv / Math.max(1, totalCommission)).toFixed(2)}x` },
+          ].map((item) => (
+            <div key={item.label} className="flex flex-col gap-1">
+              <span className="text-xs text-muted-foreground">{item.label}</span>
+              <span className="text-sm font-bold text-foreground">{item.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+        <h3 className="text-lg font-bold text-foreground mb-4">Overview Creator</h3>
+        <div className="grid gap-6 sm:grid-cols-3">
+          <MetricCard label="Creator GMV" value={totalAffiliateGmv} format="currency" icon={DollarSign} />
+          <MetricCard label="Creator Items Sold" value={totalItemsSold} format="number" icon={ShoppingBag} />
+          <MetricCard label="Est. Commission" value={totalCommission} format="currency" icon={Coins} />
+        </div>
+      </div>
+
       <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
         <h3 className="text-lg font-bold text-foreground mb-4">Creator Analyz</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                <th className="py-3 px-3">Creator Name</th><th className="py-3 px-3 text-right">GMV</th><th className="py-3 px-3 text-right">Items Sold</th><th className="py-3 px-3 text-right">AOV</th><th className="py-3 px-3 text-right">Avg/Sold</th><th className="py-3 px-3 text-right">Videos</th><th className="py-3 px-3 text-right">LIVE</th><th className="py-3 px-3 text-right">Est. Commission</th>
+                <th className="py-3 px-3">Creator Name</th>
+                <th className="py-3 px-3 text-right">GMV</th>
+                <th className="py-3 px-3 text-right">Items Sold</th>
+                <th className="py-3 px-3 text-right">AOV</th>
+                <th className="py-3 px-3 text-right">Avg/Sold</th>
+                <th className="py-3 px-3 text-right">Videos</th>
+                <th className="py-3 px-3 text-right">LIVE</th>
+                <th className="py-3 px-3 text-right">Est. Commission</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border text-foreground">
@@ -276,46 +424,6 @@ export function TikTokAffiliateAnalyz({ dashboardData }: Props) {
               {creators.length === 0 && <tr><td colSpan={8} className="py-8 text-center text-muted-foreground">No affiliate data</td></tr>}
             </tbody>
           </table>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <h3 className="text-lg font-bold text-foreground mb-4">Product Analyz (Jalur Afiliasi)</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-border text-muted-foreground text-xs font-bold uppercase tracking-wider">
-                <th className="py-3 px-3">Product Name</th><th className="py-3 px-3 text-right">Revenue</th><th className="py-3 px-3 text-right">Items Sold</th><th className="py-3 px-3 text-right">Est. Commission</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-foreground">
-              {affiliateProducts.slice(0, 15).map((p, i) => (
-                <tr key={i} className="hover:bg-muted/20 transition-colors">
-                  <td className="py-3 px-3 font-semibold text-foreground max-w-xs truncate">{p.name}</td>
-                  <td className="py-3 px-3 text-right font-semibold text-rose-500">{formatCurrency(p.gmv)}</td>
-                  <td className="py-3 px-3 text-right">{formatNumber(p.itemsSold)}</td>
-                  <td className="py-3 px-3 text-right font-bold text-violet-500 dark:text-violet-400">{formatCurrency(p.gmv * 0.08)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <h3 className="text-lg font-bold text-foreground mb-4">Commission</h3>
-        <div className="grid gap-6 lg:grid-cols-4">
-          {[
-            { label: "Commission Plan Type", value: "Open" },
-            { label: "Commission Rate%", value: "8%" },
-            { label: "Total Paid Out", value: formatCurrency(totalCommission) },
-            { label: "Affiliate ROI Multiplier", value: `${(totalAffiliateGmv / Math.max(1, totalCommission)).toFixed(2)}x` },
-          ].map((item) => (
-            <div key={item.label} className="flex flex-col gap-1">
-              <span className="text-xs text-muted-foreground">{item.label}</span>
-              <span className="text-sm font-bold text-foreground">{item.value}</span>
-            </div>
-          ))}
         </div>
       </div>
     </div>

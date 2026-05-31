@@ -61,14 +61,92 @@ export default function OverviewProduct({ dashboardData }: Props) {
   const topGmv = products[0]?.totalGmv || 0;
   const totalQtyAll = products.reduce((s, p) => s + p.totalQty, 0);
 
+  const shopeeTotal = products.reduce((s, p) => s + p.shopeeGmv, 0);
+  const tiktokTotal = products.reduce((s, p) => s + p.tiktokGmv, 0);
+  const websiteTotal = products.reduce((s, p) => s + p.websiteGmv, 0);
+  const totalGmv = shopeeTotal + tiktokTotal + websiteTotal;
+
   return (
     <div className="space-y-6 mt-4">
       <div>
-        <h2 className="text-lg font-bold text-foreground mb-4">Scorecard Performance Product</h2>
+        <h2 className="text-lg font-bold text-foreground mb-4">Performance Product</h2>
         <div className="grid gap-6 sm:grid-cols-3">
           <MetricCard label="Total Products" value={totalProducts} format="number" icon={ShoppingBag} />
           <MetricCard label="Top Revenue" value={topGmv} format="currency" icon={DollarSign} />
           <MetricCard label="Total Qty Sold" value={totalQtyAll} format="number" icon={Store} />
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <h3 className="text-lg font-bold text-foreground mb-4">Revenue Composition</h3>
+          <div className="flex flex-wrap items-center gap-6">
+              <div className="relative w-32 h-32 sm:w-40 sm:h-40">
+              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                <circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--border)" strokeWidth="3" />
+                {[
+                  { label: "Shopee", value: shopeeTotal, color: "#EE4D2D" },
+                  { label: "TikTok", value: tiktokTotal, color: "var(--foreground)" },
+                  { label: "Website", value: websiteTotal, color: "#10B981" },
+                ].map((seg, i, arr) => {
+                  const pct = totalGmv > 0 ? (seg.value / totalGmv) * 100 : 0;
+                  const offset = arr.slice(0, i).reduce((s, prev) => s + (totalGmv > 0 ? (prev.value / totalGmv) * 100 : 0), 0);
+                  return (
+                    <circle
+                      key={seg.label}
+                      cx="18" cy="18" r="15.5"
+                      fill="none" stroke={seg.color} strokeWidth="3"
+                      strokeDasharray={`${pct} ${100 - pct}`}
+                      strokeDashoffset={`${-offset}`}
+                      strokeLinecap="round"
+                    />
+                  );
+                })}
+              </svg>
+            </div>
+            <div className="space-y-3 flex-1">
+              {[
+                { label: "Shopee GMV", value: shopeeTotal, color: "#EE4D2D" },
+                { label: "TikTok GMV", value: tiktokTotal, color: "var(--foreground)" },
+                { label: "Web GMV", value: websiteTotal, color: "#10B981" },
+              ].map((item) => {
+                const pct = totalGmv > 0 ? (item.value / totalGmv) * 100 : 0;
+                return (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-sm">{item.label}</span>
+                    <span className="text-sm font-bold ml-auto">{pct.toFixed(1)}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <h3 className="text-lg font-bold text-foreground mb-4">Channel GMV</h3>
+          <div className="space-y-4">
+            {[
+              { label: "Shopee", value: shopeeTotal, color: "#EE4D2D" },
+              { label: "TikTok", value: tiktokTotal, color: "var(--foreground)" },
+              { label: "Website", value: websiteTotal, color: "#10B981" },
+            ].map((item) => (
+              <div key={item.label}>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-muted-foreground">{item.label}</span>
+                  <span className="text-foreground font-semibold">
+                    {formatCurrency(item.value)}
+                    <span className="text-muted-foreground font-normal ml-1">
+                      ({totalGmv > 0 ? ((item.value / totalGmv) * 100).toFixed(1) : 0}%)
+                    </span>
+                  </span>
+                </div>
+                <div className="h-2 w-full rounded-full bg-muted">
+                  <div className="h-full rounded-full" style={{ width: `${totalGmv > 0 ? (item.value / totalGmv) * 100 : 0}%`, backgroundColor: item.color }} />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

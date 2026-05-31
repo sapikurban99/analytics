@@ -102,6 +102,49 @@ export interface TiktokProductAdItem {
   roi: number;
 }
 
+export interface TiktokAffiliateCreator {
+  creator: string;
+  gmv: number;
+  items_sold: number;
+  orders: number;
+  commission: number;
+  refunds: number;
+  videos: number;
+  live_streams: number;
+  aov: number;
+}
+
+export interface MetaCPASSummary {
+  cost: number;
+  purchase: number;
+  items: number;
+  roas: number;
+}
+
+export interface MetaWebsiteSummary {
+  cost: number;
+  purchase: number;
+  items: number;
+  roas: number;
+}
+
+export interface MetaTrafficSummary {
+  cost: number;
+  reach: number;
+  impressions: number;
+  link_clicks: number;
+  cpm: number;
+  cpr: number;
+}
+
+export interface ShopeeChannelBreakdown {
+  product_card: number;
+  seller_live: number;
+  seller_video: number;
+  affiliate: number;
+  shopee_ads: number;
+}
+
 export interface DashboardData {
   monthName: string;
   overview: OverviewMetric[];
@@ -115,7 +158,14 @@ export interface DashboardData {
     shopee: ShopeeAdItem[];
     tiktokLive: TiktokLiveAdItem[];
     tiktokProduct: TiktokProductAdItem[];
+    meta: {
+      cpas: MetaCPASSummary;
+      website: MetaWebsiteSummary;
+      traffic: MetaTrafficSummary;
+    };
   };
+  shopeeChannel?: ShopeeChannelBreakdown;
+  tiktokAffiliateCreators: TiktokAffiliateCreator[];
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -224,6 +274,8 @@ export function getDashboardData(
   const lives: LiveSession[] = (platform === 'Shopee' || platform === 'Meta' || platform === 'Website') ? [] : monthData.lives || [];
   const videos: VideoMetric[] = (platform === 'Shopee' || platform === 'Meta' || platform === 'Website') ? [] : monthData.videos || [];
   const shopeeAffiliate: ShopeeAffiliateItem[] = (platform === 'Shopee' || platform === 'All') ? (monthData.shopee_affiliate || []) : [];
+  const shopeeChannel: ShopeeChannelBreakdown | undefined = (platform === 'Shopee' || platform === 'All') ? (monthData.shopee_channel || undefined) : undefined;
+  const tiktokAffiliateCreators: TiktokAffiliateCreator[] = (platform === 'TikTok' || platform === 'All') ? (monthData.tiktok_affiliate_creators || []) : [];
 
   const rawAds = monthData.ads || {};
   let adsSummary: AdPerformanceSummary = { cost: 0, gmv: 0, orders: 0, roi: 0 };
@@ -258,9 +310,11 @@ export function getDashboardData(
     adsSummary = { cost: meta_cost, gmv: 0, orders: 0, roi: 0 };
   }
 
+  const metaData = monthData.ads?.meta || { cpas: { cost:0, purchase:0, items:0, roas:0 }, website: { cost:0, purchase:0, items:0, roas:0 }, traffic: { cost:0, reach:0, impressions:0, link_clicks:0, cpm:0, cpr:0 } };
+
   return {
-    monthName, overview, dailyTrends, products, lives, videos, shopeeAffiliate,
-    ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList },
+    monthName, overview, dailyTrends, products, lives, videos, shopeeAffiliate, shopeeChannel, tiktokAffiliateCreators,
+    ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList, meta: metaData },
   };
 }
 
@@ -501,6 +555,9 @@ export function getDashboardDataByDateRange(
 
   const monthName = startDate === endDate ? startDate : `${startDate} — ${endDate}`;
   const shopeeAffiliate: ShopeeAffiliateItem[] = (platform === 'Shopee' || platform === 'All') ? allShopeeAffiliate : [];
+  const tiktokAffiliateCreators2: TiktokAffiliateCreator[] = (platform === 'TikTok' || platform === 'All') ? [] : [];
+
+  const metaData2 = { cpas: { cost:0, purchase:0, items:0, roas:0 }, website: { cost:0, purchase:0, items:0, roas:0 }, traffic: { cost:0, reach:0, impressions:0, link_clicks:0, cpm:0, cpr:0 } } as any;
 
   return {
     monthName,
@@ -510,6 +567,8 @@ export function getDashboardDataByDateRange(
     lives,
     videos,
     shopeeAffiliate,
-    ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList },
+    shopeeChannel: undefined,
+    tiktokAffiliateCreators: tiktokAffiliateCreators2,
+    ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList, meta: metaData2 },
   };
 }
