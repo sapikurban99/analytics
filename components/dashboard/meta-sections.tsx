@@ -66,12 +66,10 @@ export function MetaTraffic({ dashboardData }: Props) {
   const metaCost = dashboardData.ads.summary.cost;
   const metaGmv = dashboardData.overview.find((m) => m.key === "gmv")?.value || 0;
   const metaClicks = dashboardData.overview.find((m) => m.key === "clicks")?.value || 0;
-  const impressions = dashboardData.ads.tiktokLive.reduce((s, a) => s + (a as any).impressions || 0, 0) +
-    dashboardData.ads.tiktokProduct.reduce((s, a) => s + (a as any).impressions || 0, 0);
 
   if (metaCost === 0 && metaGmv === 0) return <EmptyMeta type="Meta Traffic" />;
 
-  const cpm = impressions > 0 ? (metaCost / impressions) * 1000 : 0;
+  const cpm = 0;
   const cpr = metaClicks > 0 ? metaCost / metaClicks : 0;
 
   return (
@@ -79,7 +77,7 @@ export function MetaTraffic({ dashboardData }: Props) {
       <h2 className="text-lg font-bold text-foreground">Meta Traffic</h2>
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <MetricCard label="Amount Spent (IDR)" value={metaCost} format="currency" icon={DollarSign} />
-        <MetricCard label="Impression" value={impressions} format="number" icon={Eye} />
+        <MetricCard label="Impression" value={0} format="number" icon={Eye} description="Menunggu data impression" />
         <MetricCard label="Link Clicks" value={metaClicks} format="number" icon={MousePointerClick} />
         <MetricCard label="CPM" value={cpm} format="currency" icon={TrendingUp} description="(Spend / Impression) × 1.000" />
         <MetricCard label="CPR" value={cpr} format="currency" icon={DollarSign} description="Spend / Link Click" />

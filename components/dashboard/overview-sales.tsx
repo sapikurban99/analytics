@@ -61,10 +61,11 @@ export default function OverviewSales({ dashboardData }: Props) {
 function RevenueDonut({ dashboardData }: { dashboardData: DashboardData }) {
   const shopeeVal = dashboardData.products.reduce((s, p) => s + p.shopeeGmv, 0);
   const tiktokVal = dashboardData.products.reduce((s, p) => s + p.tiktokGmv, 0);
-  const total = shopeeVal + tiktokVal;
+  const websiteVal = dashboardData.products.reduce((s, p) => s + p.websiteGmv, 0);
+  const total = shopeeVal + tiktokVal + websiteVal;
   const sPct = total > 0 ? (shopeeVal / total) * 100 : 0;
   const tPct = total > 0 ? (tiktokVal / total) * 100 : 0;
-  const wPct = Math.max(0, 100 - sPct - tPct);
+  const wPct = total > 0 ? (websiteVal / total) * 100 : 0;
 
   const totalAd = dashboardData.ads.summary.cost;
   const shpAd = dashboardData.ads.shopee.reduce((s, a) => s + a.cost, 0);

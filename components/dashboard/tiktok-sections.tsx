@@ -31,7 +31,9 @@ export function TikTokOverview({ dashboardData }: Props) {
   const adsGmv = dashboardData.ads.summary.gmv;
   const adsCost = dashboardData.ads.summary.cost;
   const roas = adsCost > 0 ? adsGmv / adsCost : 0;
-  const itemsSold = dashboardData.lives.reduce((s, l) => s + l.items_sold, 0) + dashboardData.videos.reduce((s, v) => s + v.items_sold, 0);
+  // Use products as single source of truth for items sold (from tts_product_list)
+  // Lives + videos items_sold overlap with product data → would triple-count
+  const itemsSold = dashboardData.products.reduce((s, p) => s + p.tiktokItemsSold, 0);
 
   const videoGmv = dashboardData.videos.reduce((s, v) => s + v.gmv, 0);
   const liveGmv = dashboardData.lives.reduce((s, l) => s + l.gmv, 0);

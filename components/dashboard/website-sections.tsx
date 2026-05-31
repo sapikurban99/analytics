@@ -61,8 +61,8 @@ export function WebsiteOverview({ dashboardData }: Props) {
 export function WebsiteProductAnalyz({ dashboardData }: Props) {
   const products = useMemo(() => {
     return dashboardData.products
-      .filter((p) => p.shopeeGmv === 0 && p.tiktokGmv === 0 && p.platformGmv > 0)
-      .map((p) => ({ name: p.name, gmv: p.platformGmv, itemsSold: p.platformItemsSold }))
+      .filter((p) => p.websiteGmv > 0)
+      .map((p) => ({ name: p.name, gmv: p.websiteGmv, itemsSold: p.websiteItemsSold }))
       .sort((a, b) => b.gmv - a.gmv);
   }, [dashboardData.products]);
 

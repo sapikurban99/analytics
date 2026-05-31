@@ -115,6 +115,7 @@ for file in all_files:
             "products": [],
             "lives": [],
             "videos": [],
+            "shopee_affiliate": [],
             "ads": {
                 "shopee": [],
                 "tiktok": {
@@ -162,14 +163,26 @@ for file in all_files:
     # 1. Shopee Overview
     if "shp overview metriks" in filename or "shopee overview" in filename:
         try:
-            df = pd.read_excel(file, header=None)
-            headers = df.iloc[2].tolist()
+            df = pd.read_excel(file, sheet_name="Confirmed Order", header=None)
+            
+            row0_first = str(df.iloc[0, 0]).strip().lower() if not pd.isna(df.iloc[0, 0]) else ""
+            
+            if "date" in row0_first or "tanggal" in row0_first:
+                summary_headers = df.iloc[0].tolist()
+                summary_row = 1
+                daily_headers = df.iloc[3].tolist()
+                daily_start = 4
+            else:
+                summary_headers = df.iloc[2].tolist()
+                summary_row = 0
+                daily_headers = summary_headers
+                daily_start = 3
             
             summary_values = {}
-            for col_idx, h in enumerate(headers):
+            for col_idx, h in enumerate(summary_headers):
                 if pd.isna(h):
                     continue
-                summary_values[h] = clean_number(df.iloc[0, col_idx])
+                summary_values[h] = clean_number(df.iloc[summary_row, col_idx])
                 
             data["months"][month_key]["shopee_overview"] = {
                 "gmv": summary_values.get("Sales (IDR)", 0),
@@ -181,7 +194,7 @@ for file in all_files:
             }
             
             daily_records = []
-            for idx in range(3, len(df)):
+            for idx in range(daily_start, len(df)):
                 row = df.iloc[idx]
                 if pd.isna(row[0]) or str(row[0]).strip() == '' or 'Date' in str(row[0]):
                     continue
@@ -193,7 +206,7 @@ for file in all_files:
                     date_norm = date_str
                     
                 daily_vals = {}
-                for col_idx, h in enumerate(headers):
+                for col_idx, h in enumerate(daily_headers):
                     if pd.isna(h):
                         continue
                     daily_vals[h] = clean_number(row[col_idx])
@@ -328,6 +341,63 @@ for file in all_files:
                     })
         except Exception as e:
             print(f"Error TikTok Products {filename}: {e}")
+            
+    # 4b. TikTok Product List
+    elif "tts product list" in filename:
+        try:
+            df = pd.read_excel(file)
+            if "Product name" in df.columns:
+                for _, row in df.iterrows():
+                    p_name = str(row["Product name"]).strip()
+                    if p_name == '-' or pd.isna(row["Product name"]):
+                        continue
+                    gmv = clean_number(row.get("GMV", 0))
+                    items_sold = clean_number(row.get("Items sold", 0))
+                    
+                    data["months"][month_key]["products"].append({
+                        "name": p_name,
+                        "platform": "TikTok",
+                        "status": "Active",
+                        "gmv": gmv,
+                        "items_sold": items_sold,
+                        "orders": items_sold,
+                        "conversion_rate": 0,
+                        "ctr": 0,
+                        "views": 0,
+                        "clicks": 0
+                    })
+        except Exception as e:
+            print(f"Error TikTok Product List {filename}: {e}")
+            
+    # 4c. TikTok Product Card
+    elif "tts product card" in filename:
+        try:
+            df = pd.read_excel(file)
+            if "Product" in df.columns:
+                for _, row in df.iterrows():
+                    p_name = str(row["Product"]).strip()
+                    if p_name == '-' or pd.isna(row["Product"]):
+                        continue
+                    gmv = clean_number(row.get("GMV", 0))
+                    items_sold = clean_number(row.get("Items sold", 0))
+                    views = clean_number(row.get("Views", 0))
+                    clicks = clean_number(row.get("Clicks", 0))
+                    ctr = clean_number(row.get("CTR", 0))
+                    
+                    data["months"][month_key]["products"].append({
+                        "name": p_name,
+                        "platform": "TikTok",
+                        "status": "Active",
+                        "gmv": gmv,
+                        "items_sold": items_sold,
+                        "orders": items_sold,
+                        "conversion_rate": 0,
+                        "ctr": ctr,
+                        "views": views,
+                        "clicks": clicks
+                    })
+        except Exception as e:
+            print(f"Error TikTok Product Card {filename}: {e}")
             
     # 5. TikTok Live Seller
     elif "tts live seller" in filename:
@@ -663,6 +733,34 @@ for file in all_files:
         except Exception as e:
             print(f"Error Meta Ads {filename}: {e}")
 
+    # 14. Shopee Affiliate
+    elif "shp performance affiliate" in filename or "shp affiliate" in filename:
+        try:
+            ext = os.path.splitext(file)[1].lower()
+            df = pd.read_csv(file) if ext == '.csv' else pd.read_excel(file)
+            if "Nama Affiliate" in df.columns:
+                for _, row in df.iterrows():
+                    name = str(row.get("Nama Affiliate", row.get("Username Affiliate", ""))).strip()
+                    if name == '-' or pd.isna(row.get("Nama Affiliate")):
+                        continue
+                    gmv = clean_number(row.get("Omzet Penjualan(Rp)", 0))
+                    items_sold = clean_number(row.get("Produk Terjual", 0))
+                    orders = clean_number(row.get("Pesanan", 0))
+                    clicks = clean_number(row.get("Clicks", 0))
+                    commission = clean_number(row.get("Estimasi Komisi(Rp)", 0))
+                    roi = clean_number(row.get("ROI", 0))
+                    data["months"][month_key]["shopee_affiliate"].append({
+                        "creator": name,
+                        "gmv": gmv,
+                        "items_sold": items_sold,
+                        "orders": orders,
+                        "clicks": clicks,
+                        "commission": commission,
+                        "roi": roi
+                    })
+        except Exception as e:
+            print(f"Error Shopee Affiliate {filename}: {e}")
+
 # --- THIRD PASS: POST PROCESS AND COMBINE ---
 print("Post-processing and consolidating all metrics...")
 for month_key, month_data in data["months"].items():
@@ -751,15 +849,13 @@ for month_key, month_data in data["months"].items():
     month_data["daily_trends"] = [v for k, v in sorted(daily_map.items())]
     
     # Overview totals
+    # NOTE: Meta GMV excluded from combined — meta is attribution (double-counts Shopee/Website)
     shp_o = month_data.get("shopee_overview", {})
     tts_o = month_data.get("tiktok_overview", {})
     web_o = month_data.get("website_overview_utm", {})
-    meta_ads = month_data.get("meta_ads_performance", [])
-    meta_gmv = sum(x["gmv"] for x in meta_ads)
-    meta_orders = sum(x["orders"] for x in meta_ads)
     
-    combined_gmv = shp_o.get("gmv", 0) + tts_o.get("gmv", 0) + web_o.get("gmv", 0) + meta_gmv
-    combined_orders = shp_o.get("orders", 0) + tts_o.get("orders", 0) + web_o.get("orders", 0) + meta_orders
+    combined_gmv = shp_o.get("gmv", 0) + tts_o.get("gmv", 0) + web_o.get("gmv", 0)
+    combined_orders = shp_o.get("orders", 0) + tts_o.get("orders", 0) + web_o.get("orders", 0)
     combined_visitors = shp_o.get("visitors", 0) + tts_o.get("visitors", 0) + web_o.get("visitors", 0)
     
     month_data["combined_overview"] = {
@@ -839,6 +935,8 @@ for month_key, month_data in data["months"].items():
                 "shopee_items_sold": 0,
                 "tiktok_gmv": 0,
                 "tiktok_items_sold": 0,
+                "website_gmv": 0,
+                "website_items_sold": 0,
                 "combined_gmv": 0,
                 "combined_items_sold": 0
             }
@@ -850,9 +948,12 @@ for month_key, month_data in data["months"].items():
         elif p["platform"] == "TikTok":
             m_p["tiktok_gmv"] += p["gmv"]
             m_p["tiktok_items_sold"] += p["items_sold"]
+        elif p["platform"] == "Website":
+            m_p["website_gmv"] += p["gmv"]
+            m_p["website_items_sold"] += p["items_sold"]
             
-        m_p["combined_gmv"] = m_p["shopee_gmv"] + m_p["tiktok_gmv"]
-        m_p["combined_items_sold"] = m_p["shopee_items_sold"] + m_p["tiktok_items_sold"]
+        m_p["combined_gmv"] = m_p["shopee_gmv"] + m_p["tiktok_gmv"] + m_p["website_gmv"]
+        m_p["combined_items_sold"] = m_p["shopee_items_sold"] + m_p["tiktok_items_sold"] + m_p["website_items_sold"]
         
     month_data["products_consolidated"] = sorted(merged_products.values(), key=lambda x: x["combined_gmv"], reverse=True)
 
@@ -883,7 +984,19 @@ for month_key, month_data in data["months"].items():
         "roi": round(tts_gmv / tts_cost, 2) if tts_cost > 0 else 0
     }
     
-    comb_cost = shp_cost + tts_cost
+    # Include meta cost in combined ads summary (meta spend is real ad cost)
+    meta_ads_list = month_data.get("meta_ads_performance", [])
+    meta_cost = sum(x["cost"] for x in meta_ads_list)
+    meta_gmv_ads = sum(x["gmv"] for x in meta_ads_list)
+    meta_orders_ads = sum(x["orders"] for x in meta_ads_list)
+    ads["meta_summary"] = {
+        "cost": meta_cost,
+        "gmv": meta_gmv_ads,
+        "orders": meta_orders_ads,
+        "roas": round(meta_gmv_ads / meta_cost, 2) if meta_cost > 0 else 0
+    }
+    
+    comb_cost = shp_cost + tts_cost + meta_cost
     comb_gmv = shp_gmv + tts_gmv
     comb_orders = shp_orders + tts_orders
     ads["summary"] = {

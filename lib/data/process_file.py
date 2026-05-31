@@ -140,7 +140,7 @@ def detect_document(filename):
 # ── Parsers ──
 
 def parse_shopee_overview(filepath):
-    df = pd.read_excel(filepath, header=None)
+    df = pd.read_excel(filepath, sheet_name="Confirmed Order", header=None)
 
     row0_first = str(df.iloc[0, 0]).strip().lower() if not pd.isna(df.iloc[0, 0]) else ""
 

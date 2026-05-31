@@ -22,6 +22,8 @@ export interface ConsolidatedProduct {
   shopeeItemsSold: number;
   tiktokGmv: number;
   tiktokItemsSold: number;
+  websiteGmv: number;
+  websiteItemsSold: number;
   combinedGmv: number;
   combinedItemsSold: number;
   platformGmv: number;
@@ -57,6 +59,16 @@ export interface AdPerformanceSummary {
   cost: number;
   gmv: number;
   orders: number;
+  roi: number;
+}
+
+export interface ShopeeAffiliateItem {
+  creator: string;
+  gmv: number;
+  items_sold: number;
+  orders: number;
+  clicks: number;
+  commission: number;
   roi: number;
 }
 
@@ -97,6 +109,7 @@ export interface DashboardData {
   products: ConsolidatedProduct[];
   lives: LiveSession[];
   videos: VideoMetric[];
+  shopeeAffiliate: ShopeeAffiliateItem[];
   ads: {
     summary: AdPerformanceSummary;
     shopee: ShopeeAdItem[];
@@ -194,14 +207,23 @@ export function getDashboardData(
       if (platform === 'All') { platformGmv = p.combined_gmv; platformItemsSold = p.combined_items_sold; }
       else if (platform === 'Shopee') { platformGmv = p.shopee_gmv; platformItemsSold = p.shopee_items_sold; }
       else if (platform === 'TikTok') { platformGmv = p.tiktok_gmv; platformItemsSold = p.tiktok_items_sold; }
+      else if (platform === 'Website') { platformGmv = p.website_gmv || 0; platformItemsSold = p.website_items_sold || 0; }
       else { platformGmv = 0; platformItemsSold = 0; }
-      return { name: p.name, status: p.status, shopeeGmv: p.shopee_gmv, shopeeItemsSold: p.shopee_items_sold, tiktokGmv: p.tiktok_gmv, tiktokItemsSold: p.tiktok_items_sold, combinedGmv: p.combined_gmv, combinedItemsSold: p.combined_items_sold, platformGmv, platformItemsSold };
+      return {
+        name: p.name, status: p.status,
+        shopeeGmv: p.shopee_gmv, shopeeItemsSold: p.shopee_items_sold,
+        tiktokGmv: p.tiktok_gmv, tiktokItemsSold: p.tiktok_items_sold,
+        websiteGmv: p.website_gmv || 0, websiteItemsSold: p.website_items_sold || 0,
+        combinedGmv: p.combined_gmv, combinedItemsSold: p.combined_items_sold,
+        platformGmv, platformItemsSold,
+      };
     })
     .filter((p: ConsolidatedProduct) => p.platformGmv > 0)
     .sort((a: ConsolidatedProduct, b: ConsolidatedProduct) => b.platformGmv - a.platformGmv);
 
   const lives: LiveSession[] = (platform === 'Shopee' || platform === 'Meta' || platform === 'Website') ? [] : monthData.lives || [];
   const videos: VideoMetric[] = (platform === 'Shopee' || platform === 'Meta' || platform === 'Website') ? [] : monthData.videos || [];
+  const shopeeAffiliate: ShopeeAffiliateItem[] = (platform === 'Shopee' || platform === 'All') ? (monthData.shopee_affiliate || []) : [];
 
   const rawAds = monthData.ads || {};
   let adsSummary: AdPerformanceSummary = { cost: 0, gmv: 0, orders: 0, roi: 0 };
@@ -231,11 +253,13 @@ export function getDashboardData(
     const meta_orders = meta_ads.reduce((sum: number, x: any) => sum + (x.orders || 0), 0);
     adsSummary = { cost: meta_cost, gmv: meta_gmv, orders: meta_orders, roi: meta_cost > 0 ? meta_gmv / meta_cost : 0 };
   } else if (platform === 'Website') {
-    adsSummary = { cost: 0, gmv: 0, orders: 0, roi: 0 };
+    const meta_ads = monthData.meta_ads_performance || [];
+    const meta_cost = meta_ads.reduce((sum: number, x: any) => sum + (x.cost || 0), 0);
+    adsSummary = { cost: meta_cost, gmv: 0, orders: 0, roi: 0 };
   }
 
   return {
-    monthName, overview, dailyTrends, products, lives, videos,
+    monthName, overview, dailyTrends, products, lives, videos, shopeeAffiliate,
     ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList },
   };
 }
@@ -276,6 +300,7 @@ export function getDashboardDataByDateRange(
   const productMap: Record<string, any> = {};
   const allLives: LiveSession[] = [];
   const allVideos: VideoMetric[] = [];
+  const allShopeeAffiliate: ShopeeAffiliateItem[] = [];
   const shopeeAdsList: ShopeeAdItem[] = [];
   const tiktokLiveAdsList: TiktokLiveAdItem[] = [];
   const tiktokProductAdsList: TiktokProductAdItem[] = [];
@@ -329,6 +354,7 @@ export function getDashboardDataByDateRange(
             name: p.name, status: p.status,
             shopee_gmv: 0, shopee_items_sold: 0,
             tiktok_gmv: 0, tiktok_items_sold: 0,
+            website_gmv: 0, website_items_sold: 0,
             combined_gmv: 0, combined_items_sold: 0,
           };
         }
@@ -337,6 +363,8 @@ export function getDashboardDataByDateRange(
         m.shopee_items_sold += p.shopee_items_sold || 0;
         m.tiktok_gmv += p.tiktok_gmv || 0;
         m.tiktok_items_sold += p.tiktok_items_sold || 0;
+        m.website_gmv += p.website_gmv || 0;
+        m.website_items_sold += p.website_items_sold || 0;
         m.combined_gmv += p.combined_gmv || 0;
         m.combined_items_sold += p.combined_items_sold || 0;
         if (p.status === 'Active') m.status = 'Active';
@@ -344,6 +372,7 @@ export function getDashboardDataByDateRange(
 
       allLives.push(...(monthData.lives || []));
       allVideos.push(...(monthData.videos || []));
+      allShopeeAffiliate.push(...(monthData.shopee_affiliate || []));
 
       const rawAds = monthData.ads || {};
       shopeeAdsList.push(...(rawAds.shopee || []));
@@ -418,10 +447,12 @@ export function getDashboardDataByDateRange(
       if (platform === 'All') { platformGmv = p.combined_gmv; platformItemsSold = p.combined_items_sold; }
       else if (platform === 'Shopee') { platformGmv = p.shopee_gmv; platformItemsSold = p.shopee_items_sold; }
       else if (platform === 'TikTok') { platformGmv = p.tiktok_gmv; platformItemsSold = p.tiktok_items_sold; }
+      else if (platform === 'Website') { platformGmv = p.website_gmv || 0; platformItemsSold = p.website_items_sold || 0; }
       return {
         name: p.name, status: p.status,
         shopeeGmv: p.shopee_gmv, shopeeItemsSold: p.shopee_items_sold,
         tiktokGmv: p.tiktok_gmv, tiktokItemsSold: p.tiktok_items_sold,
+        websiteGmv: p.website_gmv || 0, websiteItemsSold: p.website_items_sold || 0,
         combinedGmv: p.combined_gmv, combinedItemsSold: p.combined_items_sold,
         platformGmv, platformItemsSold,
       };
@@ -463,9 +494,13 @@ export function getDashboardDataByDateRange(
     const gmv = metaAdsList.reduce((s, x) => s + (x.gmv || 0), 0);
     const orders = metaAdsList.reduce((s, x) => s + (x.orders || 0), 0);
     adsSummary = { cost, gmv, orders, roi: cost > 0 ? gmv / cost : 0 };
+  } else if (platform === 'Website') {
+    const cost = metaAdsList.reduce((s, x) => s + (x.cost || 0), 0);
+    adsSummary = { cost, gmv: 0, orders: 0, roi: 0 };
   }
 
   const monthName = startDate === endDate ? startDate : `${startDate} — ${endDate}`;
+  const shopeeAffiliate: ShopeeAffiliateItem[] = (platform === 'Shopee' || platform === 'All') ? allShopeeAffiliate : [];
 
   return {
     monthName,
@@ -474,6 +509,7 @@ export function getDashboardDataByDateRange(
     products,
     lives,
     videos,
+    shopeeAffiliate,
     ads: { summary: adsSummary, shopee: shopeeAdsList, tiktokLive: tiktokLiveAdsList, tiktokProduct: tiktokProductAdsList },
   };
 }

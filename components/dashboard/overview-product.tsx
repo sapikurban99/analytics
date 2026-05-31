@@ -38,9 +38,9 @@ export default function OverviewProduct({ dashboardData }: Props) {
       const r = map.get(p.name)!;
       r.shopeeGmv += p.shopeeGmv;
       r.tiktokGmv += p.tiktokGmv;
-      r.websiteGmv += (p as any).websiteGmv || 0;
+      r.websiteGmv += p.websiteGmv;
       r.totalGmv = r.shopeeGmv + r.tiktokGmv + r.websiteGmv;
-      r.totalQty += p.platformItemsSold;
+      r.totalQty += p.combinedItemsSold;
       r.shopeePct = r.totalGmv > 0 ? (r.shopeeGmv / r.totalGmv) * 100 : 0;
       r.tiktokPct = r.totalGmv > 0 ? (r.tiktokGmv / r.totalGmv) * 100 : 0;
       r.websitePct = r.totalGmv > 0 ? (r.websiteGmv / r.totalGmv) * 100 : 0;

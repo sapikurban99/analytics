@@ -134,10 +134,11 @@ function RevenueDonutChart({ dashboardData }: { dashboardData: DashboardData }) 
   const allData = dashboardData;
   const tiktokGmv = allData.products.reduce((sum, p) => sum + p.tiktokGmv, 0);
   const shopeeVal = allData.products.reduce((sum, p) => sum + p.shopeeGmv, 0);
-  const totalGmv = shopeeVal + tiktokGmv;
+  const websiteVal = allData.products.reduce((sum, p) => sum + p.websiteGmv, 0);
+  const totalGmv = shopeeVal + tiktokGmv + websiteVal;
   const shopeePct = totalGmv > 0 ? (shopeeVal / totalGmv) * 100 : 0;
   const tiktokPct = totalGmv > 0 ? (tiktokGmv / totalGmv) * 100 : 0;
-  const websitePct = Math.max(0, 100 - shopeePct - tiktokPct);
+  const websitePct = totalGmv > 0 ? (websiteVal / totalGmv) * 100 : 0;
 
   const totalAdSpend = allData.ads.summary.cost;
   const shopeeAd = allData.ads.shopee.reduce((s, a) => s + a.cost, 0);
